@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Panel Administrativo - PG Del Campo</title>
+ <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+ <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+ <style>
+ :root {
+ --primary: #FFC107;
+ --primary-dark: #FFA000;
+ --secondary: #4CAF50;
+ --dark: #212121;
+ --light: #F5F5F5;
+ --white: #FFFFFF;
+ --rojo: #F44336;
+ --rojo-dark: #D32F2F;
+ --border: #E0E0E0;
+ }
+ * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+ body { background-color: var(--light); color: var(--dark); padding: 20px; }
+ .container { max-width: 1200px; margin: 0 auto; }
+ header { background-color: var(--dark); color: var(--white); padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+ h1 { font-size: 24px; }
+ .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 20px; }
+ .metric-card { background-color: var(--white); padding: 20px; border-radius: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+ .metric-card.ganancias { border-left-color: var(--secondary); }
+ .metric-card.cancelados { border-left-color: var(--rojo); }
+ .metric-title { font-size: 14px; color: #757575; text-transform: uppercase; margin-bottom: 5px; }
+ .metric-value { font-size: 28px; font-weight: bold; }
+ .card { background-color: var(--white); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+ .card h2 { font-size: 18px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--light); padding-bottom: 10px; }
+ .table-responsive { overflow-x: auto; }
+ table { width: 100%; border-collapse: collapse; text-align: left; }
+ th, td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+ th { background-color: #EEEEEE; font-weight: 600; }
+ tr:hover { background-color: #FAFAFA; }
+ .btn { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px; text-decoration: none; display: inline-block; }
+ .btn-danger { background-color: var(--rojo); color: var(--white); }
+ .btn-danger:hover { background-color: var(--rojo-dark); }
+ .form-group { margin-bottom: 15px; }
+ .form-group label { display: block; font-size: 14px; margin-bottom: 5px; font-weight: 600; }
+ .form-control { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; }
+ .badge-stock { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+ .stock-in { background-color: #E8F5E9; color: #2E7D32; }
+ .stock-out { background-color: #FFEBEE; color: #C62828; } 
+ .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+ .modal-content { background-color: var(--white); padding: 25px; border-radius: 8px; max-width: 500px; width: 90%; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+ .modal-header { font-size: 18px; font-weight: bold; margin-bottom: 15px; display: flex; justify-content: space-between; }
+ .modal-close { cursor: pointer; font-size: 20px; color: #aaa; }
+ .modal-close:hover { color: #000; }
+ .fallback-box { background-color: #FFF8E1; border: 1px solid #FFE082; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; }
+ </style>
+</head>
+<body>
+ <div class="container">
+ <header>
+ <div>
+ <h1> PG Del Campo — Control de Fidelidad</h1>
+ <p style="font-size: 12px; color: #B0BEC5;">Control de Inventario, Ventas y Tarjetas de Fidelidad (Nicaragua)</p>
+ </div>
+ <div id="reloj-nic" style="font-weight: bold; font-size: 14px; background: #37474F; padding: 8px 12px; border-radius: 4px;"></div>
+ </header>
+     </div>
+     <!-- BOTONES DINÁMICOS INTEGRADOS EN EL ENCABEZADO -->
+      <div class="banner-links">
+        <a href="panel-administrativo.html" class="btn-link btn-admin">⚙️ Panel Admin</a>
+        <a href="https://proglodelcam-commits.github.io/PG-del-Campo-en-Linea/" target="_blank" rel="noopener" class="btn-link btn-sitio">🌐 Ir a la Tienda</a> 
+</a>
+      </div>
+    </div>
+<head>
+<style>
+/* Contenedor alineado horizontalmente */
+.banner-links {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Estilo base del Botón Dinámico */
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 10px;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+/* Efecto dinámico al pasar el cursor (Hover) */
+.btn-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/* Variantes de color para cada botón */
+.btn-admin {
+  background-color: #ffffff;
+  color: #1b382b;
+  border: 1px solid #1b382b;
+}
+.btn-admin:hover {
+  background-color: #f4f4f6;
+}
+
+.btn-sitio {
+  background-color: #c8963e;
+  color: #ffffff;
+  border: 1px solid #c8963e;
+}
+.btn-sitio:hover {
+  background-color: #b38332;
+}
+</style> <!-- 2. CIERRE OBLIGATORIO DE LA SECCIÓN DE ESTILOS -->
+
+ <!-- MÉTRICAS KPI -->
+ <div class="metrics-grid">
+ <div class="metric-card">
+ <div class="metric-title">Clientes Registrados</div>
+ <div class="metric-value" id="kpi-clientes">0</div>
+ </div>
+ <div class="metric-card ganancias">
+ <div class="metric-title">Monto Estimado Recaudado</div>
+ <div class="metric-value" id="kpi-ganancias">C$ 0.00</div>
+ </div>
+ <div class="metric-card">
+ <div class="metric-title">Productos en Catálogo</div>
+ <div class="metric-value" id="kpi-productos">0</div>
+ </div>
+ <div class="metric-card cancelados">
+ <div class="metric-title">Ventas Anuladas</div>
+ <div class="metric-value" id="kpi-cancelados">0</div>
+ 
+  </tbody>
+ </table>
+ </div>
+ </div>
+ 
+ <!-- CONTROL DE FIDELIDAD -->
+ <div class="card">
+ <h2> Control de Tarjetas de Fidelidad de Clientes</h2>
+ <div class="table-responsive">
+ <table>
+ <thead>
+ <tr>
+ <th>WhatsApp</th>
+ <th>Total Compras</th>
+ <th>Estrellas Activas</th>
+ <th>Monto Total (C$)</th>
+ <th>Acciones</th>
+ </tr>
+ </thead>
+ <tbody id="clientes-table-body">
+ <tr><td colspan="5" style="text-align: center; color: #888;">Cargando lista de clientes de Firebase...</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ 
+ <!-- CONTROL DE INVENTARIO -->
+ <div class="card">
+ <h2> Inventario de Productos en Stock</h2>
+ <div class="table-responsive">
+ <table>
+ <thead>
+ <tr>
+ <th>ID</th>
+ <th>Nombre del Producto</th>
+ <th>Precio Unitario</th>
+ <th>Stock Disponible</th>
+ </tr>
+ </thead>
+ <tbody id="productos-table-body">
+ <tr><td colspan="4" style="text-align: center; color: #888;">Cargando inventario base...</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ 
+ <!-- HISTORIAL DE CANCELACIONES -->
+ <div class="card">
+ <h2>
+ <span> Historial de Ventas Canceladas</span>
+ <span style="font-size: 12px; font-weight: normal; color: var(--rojo);">Bitácora de auditoría</span>
+ </h2>
+ <div class="table-responsive">
+ <table>
+ <thead>
+ <tr>
+ <th>Fecha / Hora</th>
+ <th>WhatsApp Cliente</th>
+ <th>Productos Devueltos</th>
+ <th>Motivo de Cancelación</th>
+ </tr>
+ </thead>
+ <tbody id="cancelaciones-table-body">
+ <tr><td colspan="4" style="text-align: center; color: #888;">No hay cancelaciones registradas.</td></tr>
+ </tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- MODAL DE ANULACIÓN -->
+ <div class="modal" id="anular-modal">
+ <div class="modal-content">
+ <div class="modal-header">
+ <span> Anular Compra y Reingresar Inventario</span>
+ <span class="modal-close" onclick="cerrarModal()">&times;</span>
+ </div>
+ 
+ <div id="modal-seccion-standard">
+ <div class="form-group">
+ <label for="modal-select-compra">Seleccionar Compra Registrada</label>
+ <select id="modal-select-compra" class="form-control"></select>
+ </div>
+ </div>
+
+ <div id="modal-seccion-manual" style="display:none;">
+ <div class="fallback-box">
+ <strong>Nota:</strong> Este cliente tiene compras antiguas sin desglose de productos. Selecciona manualmente qué producto y qué cantidad deseas devolver al inventario.
+ </div>
+ <div class="form-group">
+ <label for="modal-manual-producto">Producto a devolver</label>
+ <select id="modal-manual-producto" class="form-control"></select>
+ </div>
+ <div class="form-group">
+ <label for="modal-manual-cantidad">Cantidad a reingresar al stock</label>
+ <input type="number" id="modal-manual-cantidad" class="form-control" value="1" min="1">
+ </div>
+ </div>
+
+ <div class="form-group">
+ <label for="modal-motivo">Motivo de Anulación</label>
+ <input type="text" id="modal-motivo" class="form-control" placeholder="Ej: Pedido cancelado / Devolución">
+ </div>
+
+ <input type="hidden" id="modal-cliente-whatsapp">
+ <button class="btn btn-danger" style="width: 100%; padding: 12px; margin-top: 10px;" onclick="procesarAnulacion()"> Confirmar Anulación y Reintegrar Stock</button>
+ </div>
+ </div>
+
+ <script>
+ const firebaseConfig = {
+ databaseURL: "https://productos-globales-campo-default-rtdb.firebaseio.com"
+ };
+ 
+ if (!firebase.apps.length) {
+ firebase.initializeApp(firebaseConfig);
+ }
+ const db = firebase.database();
+ 
+ let clientesData = {};
+ let productosData = {};
+ let comprasRegistroData = {};
+ let esModoManual = false;
+ 
+ setInterval(() => {
+ const fecha = new Date();
+ document.getElementById('reloj-nic').innerText = fecha.toLocaleString('es-NI', { timeZone: 'America/Managua' }) + " (MGA)";
+ }, 1000);
+ 
+ const productosBase = {
+ "prod_1": { id: "prod_1", nombre: "Café del Campo Clásico Molido 400g", precio: 120, stock: 50 },
+ "prod_2": { id: "prod_2", nombre: "Pinol del Campo Tradicional 500g", precio: 85, stock: 40 },
+ "prod_3": { id: "prod_3", nombre: "Café del Campo Premium en Grano 500g", precio: 210, stock: 25 },
+ "prod_4": { id: "prod_4", nombre: "Pinolillo del Campo Especial 500g", precio: 95, stock: 35 }
+ };
+ 
+ db.ref('productos').on('value', (snapshot) => {
+ if (!snapshot.exists()) {
+ db.ref('productos').set(productosBase);
+ return;
+ }
+ productosData = snapshot.val();
+ renderProductos();
+ actualizarSelectProductosManual();
+ calcularMetricas();
+ });
+ 
+ db.ref('clientes').on('value', (snapshot) => {
+ clientesData = snapshot.val() || {};
+ renderClientes();
+ calcularMetricas();
+ });
+ 
+ db.ref('compras_registro').on('value', (snapshot) => {
+ comprasRegistroData = snapshot.val() || {};
+ });
+ 
+ db.ref('cancelaciones').on('value', (snapshot) => {
+ const cancelaciones = snapshot.val() || {};
+ renderCancelaciones(cancelaciones);
+ document.getElementById('kpi-cancelados').innerText = Object.keys(cancelaciones).length;
+ });
+ 
+ function renderProductos() {
+ const tbody = document.getElementById('productos-table-body');
+ tbody.innerHTML = '';
+ Object.keys(productosData).forEach(id => {
+ const p = productosData[id];
+ const stockBadge = p.stock > 10 ? 'stock-in' : 'stock-out';
+ tbody.innerHTML += `
+ <tr>
+ <td><code>${p.id}</code></td>
+ <td><strong>${p.nombre}</strong></td>
+ <td>C$ ${parseFloat(p.precio).toFixed(2)}</td>
+ <td><span class="badge-stock ${stockBadge}">${p.stock} unidades</span></td>
+ </tr>
+ `;
+ });
+ document.getElementById('kpi-productos').innerText = Object.keys(productosData).length;
+ }
+
+ function actualizarSelectProductosManual() {
+ const select = document.getElementById('modal-manual-producto');
+ select.innerHTML = '';
+ Object.keys(productosData).forEach(id => {
+ const p = productosData[id];
+ select.innerHTML += `<option value="${p.id}">${p.nombre} (Stock actual: ${p.stock})</option>`;
+ });
+ }
+ 
+ function renderClientes() {
+ const tbody = document.getElementById('clientes-table-body');
+ tbody.innerHTML = '';
+ const keys = Object.keys(clientesData);
+ if(keys.length === 0) {
+ tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #888;">No hay clientes registrados.</td></tr>`;
+ return;
+ }
+ keys.forEach(whatsapp => {
+ const c = clientesData[whatsapp];
+ const estrellasActivas = (c.total_compras || 0) % 10;
+ tbody.innerHTML += `
+ <tr>
+ <td><strong>${whatsapp}</strong></td>
+ <td>${c.total_compras || 0}</td>
+ <td><span style="font-weight:bold; color:var(--primary-dark);">${estrellasActivas}</span> / 10</td>
+ <td>C$ ${parseFloat(c.monto_total || 0).toFixed(2)}</td>
+ <td>
+ <button class="btn btn-danger" onclick="abrirMenuAnulacion('${whatsapp}')">Anular Compra</button>
+ </td>
+ </tr>
+ `;
+ });
+ }
+ 
+ function renderCancelaciones(data) {
+ const tbody = document.getElementById('cancelaciones-table-body');
+ tbody.innerHTML = '';
+ const keys = Object.keys(data);
+ if(keys.length === 0) {
+ tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #888;">No hay cancelaciones registradas.</td></tr>`;
+ return;
+ }
+ keys.reverse().forEach(key => {
+ const item = data[key];
+ tbody.innerHTML += `
+ <tr>
+ <td><span style="color:#666; font-size:13px;">${item.fecha}</span></td>
+ <td><strong>${item.whatsapp_cliente}</strong></td>
+ <td><span style="color:var(--rojo-dark); font-weight:600;">${item.productos_devueltos}</span></td>
+ <td style="font-style:italic; color:#555;">${item.motivo}</td>
+ </tr>
+ `;
+ });
+ }
+ 
+ function calcularMetricas() {
+ document.getElementById('kpi-clientes').innerText = Object.keys(clientesData).length;
+ let totalDinero = 0;
+ Object.keys(clientesData).forEach(w => {
+ totalDinero += parseFloat(clientesData[w].monto_total || 0);
+ });
+ document.getElementById('kpi-ganancias').innerText = "C$ " + totalDinero.toFixed(2);
+ }
+
+ window.abrirMenuAnulacion = function(whatsapp) {
+ const select = document.getElementById('modal-select-compra');
+ select.innerHTML = '';
+ document.getElementById('modal-cliente-whatsapp').value = whatsapp;
+ document.getElementById('modal-motivo').value = '';
+
+ const cliente = clientesData[whatsapp];
+ if (!cliente || (cliente.total_compras || 0) <= 0) {
+ alert("Este cliente no tiene compras activas para anular.");
+ return;
+ }
+
+ let comprasEncontradas = [];
+
+ if (cliente.compras) {
+ Object.keys(cliente.compras).forEach(id => comprasEncontradas.push(cliente.compras[id]));
+ }
+
+ Object.keys(comprasRegistroData).forEach(id => {
+ const c = comprasRegistroData[id];
+ if (c.whatsapp_cliente === whatsapp && !comprasEncontradas.some(item => item.id === c.id)) {
+ comprasEncontradas.push(c);
+ }
+ });
+
+ if (comprasEncontradas.length === 0) {
+ // Activar modo de selección manual si no hay registros detallados antiguos
+ esModoManual = true;
+ document.getElementById('modal-seccion-standard').style.display = 'none';
+ document.getElementById('modal-seccion-manual').style.display = 'block';
+ } else {
+ esModoManual = false;
+ document.getElementById('modal-seccion-standard').style.display = 'block';
+ document.getElementById('modal-seccion-manual').style.display = 'none';
+
+ comprasEncontradas.forEach(c => {
+ let detallesStr = [];
+ if (c.items) {
+ Object.keys(c.items).forEach(pId => {
+ const pNombre = productosData[pId] ? productosData[pId].nombre : "Producto";
+ detallesStr.push(`${pNombre} (x${c.items[pId]})`);
+ });
+ }
+ const textoOption = `N°: ${c.id} | ${c.fecha} | [${detallesStr.join(', ')}] — Total: C$ ${c.monto_revertir}`;
+ select.innerHTML += `<option value="${c.id}">${textoOption}</option>`;
+ });
+ }
+
+ document.getElementById('anular-modal').style.display = 'flex';
+ };
+
+ window.cerrarModal = function() {
+ document.getElementById('anular-modal').style.display = 'none';
+ };
+
+ window.procesarAnulacion = function() {
+ const whatsapp = document.getElementById('modal-cliente-whatsapp').value;
+ const motivo = document.getElementById('modal-motivo').value.trim() || "Anulación de pedido";
+ const cliente = clientesData[whatsapp];
+
+ if (esModoManual) {
+ const prodId = document.getElementById('modal-manual-producto').value;
+ const cantidad = parseInt(document.getElementById('modal-manual-cantidad').value) || 1;
+ const prod = productosData[prodId];
+
+ if (!prod) {
+ alert("Seleccione un producto válido.");
+ return;
+ }
+
+ // Reingresar stock seleccionado
+ db.ref('productos/' + prodId).update({ stock: (prod.stock || 0) + cantidad });
+
+ // Ajustar totales del cliente
+ const nuevasCompras = Math.max(0, (cliente.total_compras || 0) - 1);
+ const nuevoMonto = Math.max(0, (cliente.monto_total || 0) - (prod.precio * cantidad));
+
+ db.ref('clientes/' + whatsapp).update({
+ total_compras: nuevasCompras,
+ monto_total: nuevoMonto
+ });
+
+ // Bitácora
+ const cancelacionId = 'canc_' + Date.now();
+ db.ref('cancelaciones/' + cancelacionId).set({
+ fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
+ whatsapp_cliente: whatsapp,
+ productos_devueltos: `${prod.nombre} (+${cantidad} unid. devueltas)`,
+ motivo: motivo
+ }).then(() => {
+ alert(`¡Éxito! Se reingresaron ${cantidad} unidad(es) de ${prod.nombre} al inventario.`);
+ cerrarModal();
+ });
+
+ } else {
+ const compraId = document.getElementById('modal-select-compra').value;
+ const bloqueCompra = (cliente && cliente.compras && cliente.compras[compraId]) || comprasRegistroData[compraId];
+
+ if (!bloqueCompra) {
+ alert("No se encontró el detalle de la compra seleccionada.");
+ return;
+ }
+
+ let productosDevueltosNombres = [];
+ if (bloqueCompra.items) {
+ Object.keys(bloqueCompra.items).forEach(pId => {
+ const cantidadARegresar = parseInt(bloqueCompra.items[pId]) || 0;
+ const stockActual = productosData[pId] ? parseInt(productosData[pId].stock || 0) : 0;
+ const pNombre = productosData[pId] ? productosData[pId].nombre : pId;
+
+ db.ref('productos/' + pId).update({ stock: stockActual + cantidadARegresar });
+ productosDevueltosNombres.push(`${pNombre} (+${cantidadARegresar} unid.)`);
+ });
+ }
+
+ const nuevasCompras = Math.max(0, (cliente.total_compras || 0) - 1);
+ const nuevoMonto = Math.max(0, (cliente.monto_total || 0) - (bloqueCompra.monto_revertir || 0));
+
+ db.ref('clientes/' + whatsapp).update({
+ total_compras: nuevasCompras,
+ monto_total: nuevoMonto
+ });
+
+ const cancelacionId = 'canc_' + Date.now();
+ db.ref('cancelaciones/' + cancelacionId).set({
+ fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
+ whatsapp_cliente: whatsapp,
+ productos_devueltos: productosDevueltosNombres.join(', '),
+ motivo: `N° Compra ${compraId}: ${motivo}`
+ });
+
+ db.ref('compras_registro/' + compraId).remove();
+ db.ref(`clientes/${whatsapp}/compras/${compraId}`).remove().then(() => {
+ alert(`¡Éxito! Se anuló la compra ${compraId} y los productos reingresaron al inventario.`);
+ cerrarModal();
+ });
+ }
+ };
+ </script>
+</body>
+</html>
