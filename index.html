@@ -834,7 +834,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, get, child, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AlzaSyBfPmfE6axd_WOZ80b0L-Jbjy6q719_NTk",
+  apiKey: "AIzaSyBfPmfE6axd_W0Z80b0L-Jbjy6q7l9_NTk",
   authDomain: "productos-globales-campo.firebaseapp.com",
   databaseURL: "https://productos-globales-campo-default-rtdb.firebaseio.com",
   projectId: "productos-globales-campo",
@@ -849,6 +849,17 @@ const db = getDatabase(app);
 
 let carrito = [];
 let productosData = {};
+/* Catálogo base cargado desde el Panel-Admin (se siembra en la nube si está vacía) */
+const SEED_PRODUCTOS = {
+  P01:{nombre:"Café Molido Premium 1lb",precio:180,stock:48,costo:110,minimo:20,categoria:"Café",puntos:9,imagen:"",icono:"fa-mug-hot",visible:true,controla_stock:true},
+  P02:{nombre:"Café en Grano 1lb",precio:200,stock:12,costo:120,minimo:15,categoria:"Café",puntos:10,imagen:"",icono:"fa-seedling",visible:true,controla_stock:true},
+  P03:{nombre:"Pinolillo Tradicional 1lb",precio:90,stock:5,costo:52,minimo:10,categoria:"Pinolillo",puntos:5,imagen:"",icono:"fa-wheat-awn",visible:true,controla_stock:true},
+  P04:{nombre:"Pinol Puro 1lb",precio:70,stock:34,costo:40,minimo:12,categoria:"Pinol",puntos:4,imagen:"",icono:"fa-bowl-rice",visible:true,controla_stock:true},
+  P05:{nombre:"Humus de Lombriz 5kg",precio:250,stock:6,costo:150,minimo:8,categoria:"Humus",puntos:12,imagen:"",icono:"fa-worm",visible:true,controla_stock:true},
+  P06:{nombre:"Humus de Lombriz 1kg",precio:80,stock:60,costo:45,minimo:15,categoria:"Humus",puntos:4,imagen:"",icono:"fa-leaf",visible:true,controla_stock:true},
+  P07:{nombre:"Café Oro Especial 1lb",precio:260,stock:9,costo:160,minimo:10,categoria:"Café",puntos:13,imagen:"",icono:"fa-award",visible:true,controla_stock:true},
+  P08:{nombre:"Combo Degustación",precio:320,stock:15,costo:190,minimo:5,categoria:"Combo",puntos:16,imagen:"",icono:"fa-box",visible:true,controla_stock:true}
+};
 let clienteTotalComprasHistorial = 0;
 let clienteMontoTotalHistorial = 0;
 let tienePremioActivo = false;
@@ -972,8 +983,13 @@ async function cargarCatalogoProductos() {
   const grid = document.getElementById("products-grid");
   try {
     const snapshot = await get(child(ref(db), "productos"));
-    if (snapshot.exists()) {
+    if (!snapshot.exists() || !Object.keys(snapshot.val() || {}).length) {
+      await set(ref(db, "productos"), SEED_PRODUCTOS);
+      productosData = SEED_PRODUCTOS;
+    } else {
       productosData = snapshot.val();
+    }
+    {
       grid.innerHTML = "";
       Object.keys(productosData).forEach(key => {
         const item = productosData[key];
@@ -992,8 +1008,6 @@ async function cargarCatalogoProductos() {
           </div>
         </div>`;
       });
-    } else {
-      grid.innerHTML = "<p style='padding:20px; color:var(--text-muted);'>No hay productos registrados en el inventario actual.</p>";
     }
   } catch (err) {
     console.error("Error catálogo:", err);
@@ -1209,12 +1223,11 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
 
 async function obtenerSiguienteRecibo() {
   try {
-    const contadorRef = ref(db, 'secuencia_recibos');
+    const contadorRef = ref(db, 'meta/contador_recibo');
     const snapContador = await get(contadorRef);
-    let ultimoNumero = snapContador.exists() ? parseInt(snapContador.val() || 0) : 1000;
-    let nuevoNumeroRecibo = ultimoNumero + 1;
-    await set(contadorRef, nuevoNumeroRecibo);
-    return String(nuevoNumeroRecibo).padStart(7, '0');
+    let numeroRecibo = snapContador.exists() ? parseInt(snapContador.val() || 1001) : 1001;
+    await set(contadorRef, numeroRecibo + 1);
+    return String(numeroRecibo).padStart(7, '0');
   } catch (e) {
     console.warn("Fallo al sincronizar contador global de recibos. Generando número alternativo:", e);
     return String(Date.now()).slice(-7);
