@@ -46,11 +46,11 @@
     <h1 class="text-xl font-bold text-pg-green">Productos Globales del Campo</h1>
     <p class="text-xs text-pg-muted mb-5">Panel Administrativo</p>
     <div class="space-y-3 text-left">
-      <div><label class="text-xs font-semibold text-pg-ink">Usuario</label><input id="logUser" value="admin" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-pg-gold"></div>
+      <div><label class="text-xs font-semibold text-pg-ink">Usuario o correo</label><input id="logUser" value="admin" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-pg-gold"></div>
       <div><label class="text-xs font-semibold text-pg-ink">Contraseña</label><input id="logPass" type="password" value="1234" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-pg-gold"></div>
       <button onclick="doLogin()" class="w-full py-2.5 rounded-lg bg-pg-gold hover:bg-pg-gold2 text-white font-semibold text-sm transition"><i class="fa-solid fa-right-to-bracket mr-1"></i> Ingresar</button>
     </div>
-    <p class="text-[11px] text-pg-muted mt-4">Prototipo demostrativo · datos simulados</p>
+    <p class="text-[11px] text-pg-muted mt-4">Ingrese con su correo de administrador para editar productos y anuncios.</p>
   </div>
 </div>
 
@@ -95,8 +95,13 @@
   try{
     const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
     const { getDatabase, ref, onValue, get, set, update, remove } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
     const cfg={apiKey:'AIzaSyBfPmfE6axd_W0Z80b0L-Jbjy6q7l9_NTk',authDomain:'productos-globales-campo.firebaseapp.com',databaseURL:'https://productos-globales-campo-default-rtdb.firebaseio.com',projectId:'productos-globales-campo'};
-    const db=getDatabase(initializeApp(cfg));
+    const _app=initializeApp(cfg);
+    const db=getDatabase(_app);
+    const auth=getAuth(_app);
+    window.PG_ADMIN_UID=null;
+    onAuthStateChanged(auth,u=>{ window.PG_ADMIN_UID=u?u.uid:null; });
     window.PGSync={
       ok:true,
       watch:(cb)=>onValue(ref(db,'productos'),s=>cb(s.val()||{})),
@@ -112,7 +117,11 @@
       removeAt:(path)=>remove(ref(db,path)),
       pullNode:async(path)=>{ const s=await get(ref(db,path)); return s.val()||{}; },
       seedIfEmpty:async(obj)=>{ const s=await get(ref(db,'productos')); if(!s.exists()||!Object.keys(s.val()||{}).length){ await update(ref(db,'productos'),obj); return true;} return false; },
-      nextRecibo:async()=>{ const r=ref(db,'meta/contador_recibo'); const s=await get(r); const n=s.exists()?parseInt(s.val()||1001):1001; await set(r,n+1); return String(n).padStart(7,'0'); }
+      nextRecibo:async()=>{ const r=ref(db,'meta/contador_recibo'); const s=await get(r); const n=s.exists()?parseInt(s.val()||1001):1001; await set(r,n+1); return String(n).padStart(7,'0'); },
+      /* --- Autenticacion Firebase (Email/Password) para el administrador --- */
+      signIn:async(email,pass)=>{ const c=await signInWithEmailAndPassword(auth,email,pass); return c.user?c.user.uid:null; },
+      signOut:async()=>{ try{ await signOut(auth); }catch(e){} },
+      currentUid:()=>window.PG_ADMIN_UID
     };
   }catch(e){ window.PGSync={ok:false,error:String(e)}; }
   if(typeof window.__pgSyncReady==='function') window.__pgSyncReady();
@@ -259,6 +268,16 @@ let CUPONES = [
   { codigo:'FIEL50', tipo:'C$', valor:50, desc:'C$50 por fidelidad', activo:false, usos:0 }
 ];
 
+/* ---------- ANUNCIOS (banner publicitario de la Tienda en Línea) ----------
+   Cada anuncio: {id,titulo,descripcion,enlace,tipo:'imagen'|'video',imagen,url,fondo,activo}
+   Se guarda localmente y, si hay conexión, se sincroniza al nodo Firebase 'anuncios'
+   que la Tienda en Línea (tienda.html) ya lee y muestra en su carrusel. */
+let ANUNCIOS = {};
+(function loadAnuncios(){ try{ const s=localStorage.getItem('PG_ANUNCIOS_V1'); if(s){ const o=JSON.parse(s); if(o&&typeof o==='object') ANUNCIOS=o; } }catch(e){} })();
+function saveAnuncios(){ try{ localStorage.setItem('PG_ANUNCIOS_V1',JSON.stringify(ANUNCIOS)); }catch(e){} }
+function cloudSetAnuncio(id,a){ if(window.PGSync&&window.PGSync.ok&&window.PGSync.setAt){ try{ window.PGSync.setAt('anuncios/'+id,a); }catch(e){} } }
+function cloudRemoveAnuncio(id){ if(window.PGSync&&window.PGSync.ok&&window.PGSync.removeAt){ try{ window.PGSync.removeAt('anuncios/'+id); }catch(e){} } }
+
 /* ---------- USUARIOS ---------- */
 let USUARIOS = [
   { id:'U1', nombre:'Administrador', usuario:'admin', clave:'1234', rol:'Administrador', activo:true },
@@ -305,6 +324,7 @@ const MENU = [
   {id:'vender',       t:'Vender',            i:'fa-cash-register'},
   {id:'pedidos',      t:'Pedidos',           i:'fa-clipboard-list'},
   {id:'catalogo',     t:'Catálogo en Línea', i:'fa-store'},
+  {id:'anuncios',     t:'Anuncios',           i:'fa-bullhorn'},
   {id:'finanzas',     t:'Finanzas',          i:'fa-chart-line'},
   {id:'ingresos',     t:'Ingresos',          i:'fa-coins'},
   {id:'cxc',          t:'Cuentas por Cobrar',i:'fa-hand-holding-dollar'},
@@ -338,12 +358,7 @@ function go(id){
   if(window.innerWidth<1024){ document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('overlay').classList.add('hidden'); }
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function doLogin(){
-  const usr=(document.getElementById('logUser').value||'').trim();
-  const pas=(document.getElementById('logPass').value||'');
-  const u=USUARIOS.find(x=>x.usuario.toLowerCase()===usr.toLowerCase());
-  if(!u || (u.clave||'')!==pas){ toast('Usuario o contraseña incorrectos'); return; }
-  if(!u.activo){ toast('El usuario está desactivado'); return; }
+function _enterPanel(u){
   window.USUARIO_ACTUAL=u;
   document.getElementById('loginScreen').style.display='none';
   const app=document.getElementById('app'); app.classList.remove('hidden'); app.classList.add('flex');
@@ -352,12 +367,34 @@ function doLogin(){
   go('inicio');
   setTimeout(()=>{ try{ const n=(typeof clientesProximosDecima==='function'&&PROMO_ALERTA_ON)?clientesProximosDecima().length:0; if(n>0) toast('\uD83D\uDD14 '+n+' cliente(s) pr\u00f3ximo(s) a su 10.\u00aa compra'); }catch(e){} },900);
 }
-function doLogout(){ if(!confirm('¿Desea salir del panel administrativo?')) return; document.getElementById('app').classList.add('hidden'); document.getElementById('loginScreen').style.display='flex'; }
+async function doLogin(){
+  const usr=(document.getElementById('logUser').value||'').trim();
+  const pas=(document.getElementById('logPass').value||'');
+  /* Si el usuario ingresa un correo, se autentica contra Firebase (Email/Password)
+     para obtener el token de administrador que autoriza escribir anuncios. */
+  if(usr.includes('@')){
+    if(window.PGSync&&window.PGSync.ok&&typeof window.PGSync.signIn==='function'){
+      try{
+        await window.PGSync.signIn(usr,pas);
+        _enterPanel({usuario:usr,nombre:'Administrador',activo:true,rol:'admin'});
+        toast('\u2713 Sesi\u00f3n de administrador verificada');
+        return;
+      }catch(e){ toast('Credenciales de Firebase incorrectas o sin conexi\u00f3n'); return; }
+    }
+    toast('Sin conexi\u00f3n para verificar el correo'); return;
+  }
+  /* Fallback local (sin conexi\u00f3n / uso b\u00e1sico): no otorga token de escritura de anuncios. */
+  const u=USUARIOS.find(x=>x.usuario.toLowerCase()===usr.toLowerCase());
+  if(!u || (u.clave||'')!==pas){ toast('Usuario o contrase\u00f1a incorrectos'); return; }
+  if(!u.activo){ toast('El usuario est\u00e1 desactivado'); return; }
+  _enterPanel(u);
+}
+function doLogout(){ if(!confirm('\u00bfDesea salir del panel administrativo?')) return; try{ if(window.PGSync&&window.PGSync.signOut) window.PGSync.signOut(); }catch(e){} document.getElementById('app').classList.add('hidden'); document.getElementById('loginScreen').style.display='flex'; }
 function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('-translate-x-full'); document.getElementById('overlay').classList.toggle('hidden'); }
 function toast(msg){ const t=document.getElementById('toast'); document.getElementById('toastMsg').textContent=msg; t.classList.remove('hidden'); t.classList.add('flex'); clearTimeout(window._tt); window._tt=setTimeout(()=>{t.classList.add('hidden');t.classList.remove('flex');},2600); }
 function openModal(html){ document.getElementById('modalBody').innerHTML=html; document.getElementById('modal').classList.add('open'); }
 function closeModal(){ document.getElementById('modal').classList.remove('open'); }
-function refrescar(){ if(typeof VISTA==='undefined'||!document.getElementById('view-'+VISTA)) return; if(typeof applyEntregas==='function') applyEntregas(); if(RENDER[VISTA]) RENDER[VISTA](); }
+function refrescar(){ if(typeof VISTA==='undefined'||!document.getElementById('view-'+VISTA)) return; if(typeof applyEntregas==='function') applyEntregas(); if(typeof applyCancelaciones==='function') applyCancelaciones(); if(RENDER[VISTA]) RENDER[VISTA](); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 
@@ -369,6 +406,15 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 let _donut;
 RENDER.inicio = function(){
   const c=stockCounts(), pend=pedidosPendientes();
+  const vh=ventasHoy(), totVH=totalVentasHoyDetalle();
+  const rowsV=vh.map(v=>`
+    <tr class="border-b border-gray-100 hover:bg-pg-cream/60">
+      <td class="px-3 py-2 font-semibold text-pg-green whitespace-nowrap">${esc(v.recibo||'')}</td>
+      <td class="px-3 py-2">${esc(v.cliente||'\u2014')}</td>
+      <td class="px-3 py-2 text-pg-muted">${esc(v.origen||'')}</td>
+      <td class="px-3 py-2">${esc(v.metodo||'')}</td>
+      <td class="px-3 py-2 text-right font-semibold">${money(v.total)}</td>
+    </tr>`).join('');
   const rows=pend.map(p=>`
     <tr class="border-b border-gray-100 hover:bg-pg-cream/60">
       <td class="px-3 py-2 font-semibold text-pg-green whitespace-nowrap">${p.recibo}</td>
@@ -377,7 +423,7 @@ RENDER.inicio = function(){
       <td class="px-3 py-2 text-pg-muted hidden md:table-cell">${p.items.map(i=>i.q+'× '+esc(i.n)).join(', ')}</td>
       <td class="px-3 py-2 text-right font-semibold">${money(p.total)}</td>
       <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.estado==='Pendiente'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-800'}">${p.estado}</span></td>
-      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button><button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2"><i class="fa-solid fa-check"></i></button></td>
+      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button><button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button></td>
     </tr>`).join('');
   document.getElementById('view-inicio').innerHTML=`
   ${bannerAlertaDecima()}
@@ -419,8 +465,16 @@ RENDER.inicio = function(){
   <div class="bg-white rounded-2xl shadow-soft mt-6">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green flex items-center gap-2"><i class="fa-solid fa-clipboard-list text-pg-gold"></i> Pedidos Pendientes</h3><span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-semibold">${pend.length} por entregar</span></div>
     <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Recibo</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acción</th></tr></thead>
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acci\u00f3n</th></tr></thead>
       <tbody>${rows||'<tr><td colspan=7 class="text-center py-6 text-pg-muted">Sin pedidos pendientes</td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-soft mt-6">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green flex items-center gap-2"><i class="fa-solid fa-cash-register text-pg-gold"></i> Detalle de ventas del d\u00eda</h3><span class="text-xs bg-pg-green/10 text-pg-green px-2 py-1 rounded-full font-semibold">${vh.length} \u00b7 ${money(totVH)}</span></div>
+    <div class="overflow-x-auto"><table class="w-full text-sm">
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">M\u00e9todo</th><th class="px-3 py-2 text-right">Monto</th></tr></thead>
+      <tbody>${rowsV||'<tr><td colspan=5 class="text-center py-6 text-pg-muted">Sin ventas registradas hoy</td></tr>'}</tbody>
+      <tfoot><tr class="bg-pg-cream/60 font-bold text-pg-green"><td class="px-3 py-2" colspan=4>Total del d\u00eda</td><td class="px-3 py-2 text-right">${money(totVH)}</td></tr></tfoot>
     </table></div>
   </div>`;
   setTimeout(drawDonut,60);
@@ -454,18 +508,22 @@ function confirmarEntrega(r){
   const p=PEDIDOS.find(x=>x.recibo===r); if(!p)return;
   const modo=(document.querySelector('input[name=entModo]:checked')||{}).value||'contado';
   const sh=+p.ship||0, total=Math.max(0,(+p.total||0)), idx=PEDIDOS.indexOf(p);
+  const fISO=new Date().toISOString();
   if(modo==='contado'){
-    registrarEntrega({recibo:p.recibo,modo:'contado',total:total,abono:total,saldo:0,cliente:p.cliente,tel:p.tel||'',origen:p.origen,metodo:'Contado',ship:sh,fecha:fechaHora()});
+    registrarEntrega({recibo:p.recibo,modo:'contado',total:total,abono:total,saldo:0,cliente:p.cliente,tel:p.tel||'',origen:p.origen,metodo:'Contado',ship:sh,fecha:fechaHora(),fechaISO:fISO});
     if(idx>=0) PEDIDOS.splice(idx,1);
-    closeModal(); refrescar(); toast('Pedido '+r+' entregado al contado');
+    closeModal(); refrescar(); toast('Pedido '+r+' entregado al contado \u00b7 venta registrada');
   } else {
     let abono=parseFloat((document.getElementById('entAbono')||{}).value)||0;
     abono=Math.max(0,Math.min(abono,total));
     const saldo=+(total-abono).toFixed(2);
-    registrarEntrega({recibo:p.recibo,modo:'credito',total:total,abono:abono,saldo:saldo,cliente:p.cliente,tel:p.tel||'',origen:p.origen,metodo:'Cr\u00e9dito',ship:sh,fecha:fechaHora()});
+    registrarEntrega({recibo:p.recibo,modo:'credito',total:total,abono:abono,saldo:saldo,cliente:p.cliente,tel:p.tel||'',origen:p.origen,metodo:'Cr\u00e9dito',ship:sh,fecha:fechaHora(),fechaISO:fISO});
     if(idx>=0) PEDIDOS.splice(idx,1);
     closeModal(); refrescar(); toast('Pedido '+r+' entregado a cr\u00e9dito \u00b7 saldo '+money(saldo)+' a CxC');
-    if(abono>0){ abrirRecibo({docTipo:'Recibo',recibo:'AB-'+p.recibo,tipo:'Abono a factura de cr\u00e9dito '+p.recibo,cliente:p.cliente,tel:p.tel||'',fecha:fechaHora(),metodo:'Abono',lineas:[{desc:'Abono a factura '+p.recibo,cant:1,precio:abono}],subtotal:abono,ship:0,total:abono,saldoPendiente:saldo}); }
+    if(abono>0){
+      registrarAbono({cliente:p.cliente,tel:p.tel||'',monto:abono,refFactura:p.recibo,fecha:fechaHora(),fechaISO:fISO});
+      abrirRecibo({docTipo:'Factura',recibo:'AB-'+p.recibo,tipo:'Abono a factura de cr\u00e9dito '+p.recibo,cliente:p.cliente,tel:p.tel||'',fecha:fechaHora(),metodo:'Abono',lineas:[{desc:'Abono a factura '+p.recibo,cant:1,precio:abono}],subtotal:abono,ship:0,total:abono,saldoPendiente:saldo});
+    }
   }
 }
 
@@ -788,8 +846,8 @@ async function resetTodo(){
   }
   /* 2) Limpiar los datos guardados localmente en el navegador */
   try{
-    ENTREGAS={}; DELIVERED_ONLINE={}; saveEntregas();
-    ['PG_ENTREGAS_V1','pg_salidas','pg_usuarios'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+    ENTREGAS={}; DELIVERED_ONLINE={}; CANCELADOS={}; ABONOS=[]; saveEntregas(); saveCancelados(); saveAbonos();
+    ['PG_ENTREGAS_V1','PG_CANCELADOS_V1','PG_ABONOS_V1','pg_salidas','pg_usuarios'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
   }catch(e){}
   /* 3) Vaciar los arreglos en memoria */
   PRODUCTOS=[]; CLIENTES=[]; PEDIDOS=[]; VENTAS=[]; TRANSACCIONES=[]; SALIDAS=[]; CART=[];
@@ -813,6 +871,22 @@ let ENTREGAS={};           /* recibo -> {recibo,modo,total,abono,saldo,cliente,t
 (function loadEntregas(){ try{ const s=localStorage.getItem('PG_ENTREGAS_V1'); if(s){ const o=JSON.parse(s); if(o&&typeof o==='object'){ ENTREGAS=o; Object.keys(ENTREGAS).forEach(k=>{ DELIVERED_ONLINE[k]=true; }); } } }catch(e){} })();
 function saveEntregas(){ try{ localStorage.setItem('PG_ENTREGAS_V1',JSON.stringify(ENTREGAS)); }catch(e){} }
 function registrarEntrega(rec){ if(!rec||!rec.recibo)return; ENTREGAS[rec.recibo]=rec; DELIVERED_ONLINE[rec.recibo]=true; saveEntregas(); }
+/* --- Cancelación de pedidos (persistente, mismo patrón que ENTREGAS) --- */
+let CANCELADOS={};         /* recibo -> {recibo,cliente,origen,fecha} */
+(function loadCancelados(){ try{ const s=localStorage.getItem('PG_CANCELADOS_V1'); if(s){ const o=JSON.parse(s); if(o&&typeof o==='object') CANCELADOS=o; } }catch(e){} })();
+function saveCancelados(){ try{ localStorage.setItem('PG_CANCELADOS_V1',JSON.stringify(CANCELADOS)); }catch(e){} }
+/* --- Abonos (movimientos de pago a crédito, persistentes) para el Estado de Cuenta --- */
+let ABONOS=[];            /* {id,cliente,tel,monto,refFactura,fecha,fechaISO} */
+(function loadAbonos(){ try{ const s=localStorage.getItem('PG_ABONOS_V1'); if(s){ const a=JSON.parse(s); if(Array.isArray(a)) ABONOS=a; } }catch(e){} })();
+function saveAbonos(){ try{ localStorage.setItem('PG_ABONOS_V1',JSON.stringify(ABONOS)); }catch(e){} }
+function registrarAbono(a){ if(!a||!(+a.monto>0))return; ABONOS.unshift({id:'AB-'+Date.now().toString().slice(-6),cliente:a.cliente||'',tel:a.tel||'',monto:+a.monto,refFactura:a.refFactura||'',fecha:a.fecha||fechaHora(),fechaISO:a.fechaISO||new Date().toISOString()}); saveAbonos(); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+/* Ventas del día: entregas al contado + abonos + ventas de POS registradas hoy */
+function ventasHoy(){ const hoy=todayISO(); return VENTAS.filter(v=>{ const iso=v.fechaISO?String(v.fechaISO).slice(0,10):null; return iso? (iso===hoy) : true; }); }
+function totalVentasHoyDetalle(){ return ventasHoy().reduce((s,v)=>s+(+v.total||0),0); }
+function registrarCancelacion(rec){ if(!rec||!rec.recibo)return; CANCELADOS[rec.recibo]=rec; saveCancelados(); if(window.PGSync&&window.PGSync.ok&&window.PGSync.setAt){ try{ window.PGSync.setAt('pedidos_estado/'+rec.recibo,{estado:'Cancelado'}); }catch(e){} } }
+function applyCancelaciones(){ PEDIDOS=PEDIDOS.filter(p=>!CANCELADOS[p.recibo]); }
+function cancelarPedido(r){ const p=PEDIDOS.find(x=>x.recibo===r); if(!p)return; if(!confirm('¿Cancelar el pedido '+r+'? Ya no aparecerá en pendientes.'))return; registrarCancelacion({recibo:p.recibo,cliente:p.cliente||'',origen:p.origen||'',fecha:fechaHora()}); const idx=PEDIDOS.indexOf(p); if(idx>=0) PEDIDOS.splice(idx,1); refrescar(); toast('Pedido '+r+' cancelado'); }
 function saldoEntregasCliente(nombre){ let s=0; Object.values(ENTREGAS).forEach(r=>{ if(r&&r.modo==='credito'&&r.cliente===nombre) s+=(+r.saldo||0); }); return +s.toFixed(2); }
 /* Recalcula (idempotente) los efectos de las entregas: retira los pedidos entregados
    de Inicio/Pedidos, deriva los ingresos (contado y abonos) y suma el saldo de crédito a CxC. */
@@ -824,12 +898,16 @@ function applyEntregas(){
     if(!r) return;
     const hh=(String(r.fecha||'').split(',').pop()||'').trim()||hora();
     if(r.modo==='contado'){
-      VENTAS.unshift({ deliv:true, hora:hh, recibo:r.recibo, origen:r.origen||'Pedido', cliente:r.cliente||'', total:+r.total||0, metodo:r.metodo||'Contado', sub:Math.max(0,(+r.total||0)-(+r.ship||0)), ship:+r.ship||0, desc:0 });
+      VENTAS.unshift({ deliv:true, hora:hh, fechaISO:r.fechaISO||'', recibo:r.recibo, origen:r.origen||'Pedido', cliente:r.cliente||'', total:+r.total||0, metodo:r.metodo||'Contado', sub:Math.max(0,(+r.total||0)-(+r.ship||0)), ship:+r.ship||0, desc:0 });
       TRANSACCIONES.unshift({ deliv:true, id:'TXE-'+r.recibo, recibo:r.recibo, fecha:r.fecha||fechaHora(), metodo:r.metodo||'Contado', monto:+r.total||0, estado:'Confirmada', origen:r.origen||'Pedido' });
-    } else if((+r.abono||0)>0){
-      VENTAS.unshift({ deliv:true, hora:hh, recibo:r.recibo, origen:r.origen||'Pedido', cliente:r.cliente||'', total:+r.abono||0, metodo:'Abono (cr\u00e9dito)', sub:+r.abono||0, ship:0, desc:0 });
-      TRANSACCIONES.unshift({ deliv:true, id:'TXE-'+r.recibo, recibo:r.recibo, fecha:r.fecha||fechaHora(), metodo:'Abono', monto:+r.abono||0, estado:'Confirmada', origen:'Cuenta por cobrar' });
     }
+  });
+  /* Ingresos por abonos a cr\u00e9dito: cada abono se registra en su propia fecha */
+  ABONOS.forEach(a=>{
+    if(!a||!(+a.monto>0)) return;
+    const hh=(String(a.fecha||'').split(',').pop()||'').trim()||hora();
+    VENTAS.unshift({ deliv:true, hora:hh, fechaISO:a.fechaISO||'', recibo:a.id, origen:'Abono a cr\u00e9dito', cliente:a.cliente||'', total:+a.monto||0, metodo:'Abono (cr\u00e9dito)', sub:+a.monto||0, ship:0, desc:0 });
+    TRANSACCIONES.unshift({ deliv:true, id:'TXA-'+a.id, recibo:a.id, fecha:a.fecha||fechaHora(), metodo:'Abono', monto:+a.monto||0, estado:'Confirmada', origen:'Cuenta por cobrar' });
   });
   /* asegura que exista el cliente con saldo de crédito pendiente */
   Object.values(ENTREGAS).forEach(r=>{ if(r&&r.modo==='credito'&&(+r.saldo||0)>0&&r.cliente){ if(!CLIENTES.find(c=>c.nombre===r.cliente)){ CLIENTES.push({ id:'CE-'+r.recibo, nombre:r.cliente, tel:r.tel||'', tarjeta:'', puntos:0, compras:0, saldo:0, alta:'' }); } } });
@@ -884,7 +962,7 @@ function rebuildCloudRecibos(){
   VENTAS=VENTAS.filter(v=>!v.cloud);
   TRANSACCIONES=TRANSACCIONES.filter(t=>!t.cloud);
   list.forEach(m=>{
-    if(DELIVERED_ONLINE[m.recibo]) return; /* ya entregado: no reaparece en Inicio ni en Pedidos */
+    if(DELIVERED_ONLINE[m.recibo]||CANCELADOS[m.recibo]) return; /* ya entregado o cancelado: no reaparece en Inicio ni en Pedidos */
     const pago=m.credito?'Cr\u00e9dito':(m.estado_pago==='pendiente'?'Pendiente':'Pagado');
     PEDIDOS.unshift({ cloud:true, recibo:m.recibo, origen:m.origen||'Tienda en Linea', cliente:m.cliente||'Cliente en linea', tel:m.tel||'', items:m.items||[], total:+m.total||0, ship:+m.ship||0, descMonto:(m.descMonto!=null?+m.descMonto:null), descTipo:m.descTipo||'', estado:'Pendiente', pago, fecha:m.fecha||'' });
     /* El ingreso NO se registra al llegar el pedido: se registra al ENTREGARLO (contado o abono). */
@@ -900,6 +978,8 @@ function startCloudLive(){
   window.PGSync.watchNode('transacciones', d=>{ CLOUD.transacciones=d||{}; rebuildCloudRecibos(); refrescar(); });
   window.PGSync.watchNode('compras_registro', d=>{ CLOUD.compras=d||{}; rebuildCloudRecibos(); refrescar(); });
   window.PGSync.watchNode('cuentas_por_cobrar', d=>{ mergeCloudCxc(d); refrescar(); });
+  window.PGSync.watchNode('pedidos_estado', d=>{ d=d||{}; Object.keys(d).forEach(r=>{ const st=d[r]&&d[r].estado; if(st==='Cancelado'&&!CANCELADOS[r]) CANCELADOS[r]={recibo:r,fecha:''}; }); saveCancelados(); rebuildCloudRecibos(); refrescar(); });
+  window.PGSync.watchNode('anuncios', d=>{ if(d&&typeof d==='object'){ ANUNCIOS=d; saveAnuncios(); if(VISTA==='anuncios'&&RENDER.anuncios) RENDER.anuncios(); } });
   if(typeof setSyncMsg==='function') setSyncMsg('<span class="text-pg-green"><i class="fa-solid fa-satellite-dish"></i> Sincronizaci\u00f3n en vivo activa</span>');
 }
 (function waitCloud(){ let n=0; (function t(){ if(window.PGSync&&window.PGSync.ok&&window.PGSync.watchNode){ startCloudLive(); } else if(n++<25){ setTimeout(t,300); } })(); })();
@@ -923,7 +1003,7 @@ RENDER.pedidos = function(){
       <td class="px-3 py-2 text-right font-semibold">${money(p.total)}</td>
       <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.pago==='Pagado'?'bg-green-100 text-green-700':p.pago==='Crédito'?'bg-amber-100 text-amber-800':'bg-red-100 text-red-700'}">${p.pago}</span></td>
       <td class="px-3 py-2 text-center"><span class="text-[11px] px-2 py-0.5 rounded-full ${p.estado==='Entregado'?'bg-green-100 text-green-700':p.estado==='Pendiente'?'bg-red-100 text-red-700':'bg-amber-100 text-amber-800'}">${p.estado}</span></td>
-      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button>${p.estado!=='Entregado'?`<button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2"><i class="fa-solid fa-check"></i></button>`:'<i class="fa-solid fa-circle-check text-pg-leaf"></i>'}</td>
+      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="reciboPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2 mr-1"><i class="fa-solid fa-receipt"></i></button>${p.estado!=='Entregado'?`<button onclick="entregarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-check"></i></button><button onclick="cancelarPedido('${p.recibo}')" class="text-[11px] px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700" title="Cancelar pedido"><i class="fa-solid fa-xmark"></i></button>`:'<i class="fa-solid fa-circle-check text-pg-leaf"></i>'}</td>
     </tr>`).join('');
   const chip=(v)=>`<button onclick="pedFiltro('${v}')" class="px-3 py-1.5 rounded-full text-xs font-semibold border ${PED_FILTRO===v?'bg-pg-green text-white border-pg-green':'bg-white text-pg-green border-gray-200'}">${v}</button>`;
   document.getElementById('view-pedidos').innerHTML=`
@@ -934,7 +1014,7 @@ RENDER.pedidos = function(){
   <div class="bg-white rounded-2xl shadow-soft">
     <div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-clipboard-list text-pg-gold mr-2"></i>Gestión de Pedidos</h3></div>
     <div class="overflow-x-auto"><table class="w-full text-sm">
-      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Recibo</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Pago</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acción</th></tr></thead>
+      <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-left hidden md:table-cell">Detalle</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2 text-center">Pago</th><th class="px-3 py-2 text-center">Estado</th><th class="px-3 py-2 text-center">Acción</th></tr></thead>
       <tbody>${rows||'<tr><td colspan=9 class="text-center py-6 text-pg-muted">Sin pedidos</td></tr>'}</tbody>
     </table></div>
   </div>
@@ -1499,7 +1579,7 @@ RENDER.cxc = function(){
     <tr class="border-b border-gray-100 hover:bg-pg-cream/60">
       <td class="px-3 py-2"><b>${esc(c.nombre)}</b></td><td class="px-3 py-2">${c.tarjeta}</td><td class="px-3 py-2 text-pg-muted">${esc(c.tel)}</td>
       <td class="px-3 py-2 text-right font-semibold text-red-600">${money(c.saldo)}</td>
-      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="abonar('${c.id}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2"><i class="fa-solid fa-hand-holding-dollar"></i> Registrar abono</button></td>
+      <td class="px-3 py-2 text-center whitespace-nowrap"><button onclick="abonar('${c.id}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-green text-white hover:bg-pg-green2 mr-1"><i class="fa-solid fa-hand-holding-dollar"></i> Registrar abono</button><button onclick="estadoCuenta('${c.id}')" class="text-[11px] px-2 py-1 rounded-md bg-pg-gold text-white hover:bg-pg-gold2"><i class="fa-solid fa-file-invoice-dollar"></i> Estado de cuenta</button></td>
     </tr>`).join('');
   document.getElementById('view-cxc').innerHTML=`
   <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
@@ -1517,8 +1597,51 @@ function abonar(id){ const c=CLIENTES.find(x=>x.id===id); if(!c)return; const v=
   Object.values(ENTREGAS).forEach(r=>{ if(rest<=0)return; if(r&&r.modo==='credito'&&r.cliente===c.nombre&&(+r.saldo||0)>0){ const pay=Math.min(rest,+r.saldo); r.saldo=+(r.saldo-pay).toFixed(2); r.abono=+((+r.abono||0)+pay).toFixed(2); rest=+(rest-pay).toFixed(2); } });
   saveEntregas();
   const saldoFinal=Math.max(0,+(c.saldo-v).toFixed(2));
-  refrescar(); toast('Abono de '+money(v)+' registrado');
-  abrirRecibo({docTipo:'Recibo',recibo:'AB-'+Date.now().toString().slice(-6),tipo:'Abono a cuenta por cobrar',cliente:c.nombre,tel:c.tel||'',fecha:fechaHora(),metodo:'Abono',lineas:[{desc:'Abono a cuenta de '+c.nombre,cant:1,precio:v}],subtotal:v,ship:0,total:v,saldoPendiente:saldoFinal}); }
+  registrarAbono({cliente:c.nombre,tel:c.tel||'',monto:v,refFactura:'CxC',fecha:fechaHora(),fechaISO:new Date().toISOString()});
+  const abId=ABONOS[0]?ABONOS[0].id:('AB-'+Date.now().toString().slice(-6));
+  refrescar(); toast('Abono de '+money(v)+' registrado \u00b7 ingreso a Ingresos');
+  abrirRecibo({docTipo:'Factura',recibo:abId,tipo:'Abono a cuenta por cobrar',cliente:c.nombre,tel:c.tel||'',fecha:fechaHora(),metodo:'Abono',lineas:[{desc:'Abono a cuenta de '+c.nombre,cant:1,precio:v}],subtotal:v,ship:0,total:v,saldoPendiente:saldoFinal}); }
+
+/* Estado de cuenta por cliente y per\u00edodo (por defecto el mes actual). */
+function estadoCuenta(id){ const c=CLIENTES.find(x=>x.id===id); if(!c)return;
+  const now=new Date(); const y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0');
+  const ini=y+'-'+m+'-01'; const fin=now.toISOString().slice(0,10);
+  openModal(`<h3 class="font-bold text-pg-green mb-1"><i class="fa-solid fa-file-invoice-dollar text-pg-gold mr-2"></i>Estado de cuenta</h3>
+    <p class="text-sm text-pg-muted mb-3">${esc(c.nombre)}</p>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <label class="text-xs text-pg-muted">Desde<input id="ecDesde" type="date" value="${ini}" class="mt-1 w-full border rounded-lg px-2 py-1.5 text-sm"></label>
+      <label class="text-xs text-pg-muted">Hasta<input id="ecHasta" type="date" value="${fin}" class="mt-1 w-full border rounded-lg px-2 py-1.5 text-sm"></label>
+    </div>
+    <div class="flex gap-2"><button onclick="closeModal()" class="flex-1 py-2.5 rounded-lg bg-gray-100 text-sm font-semibold">Cancelar</button><button onclick="estadoCuentaGen('${c.id}')" class="flex-1 py-2.5 rounded-lg bg-pg-green hover:bg-pg-green2 text-white text-sm font-semibold">Generar</button></div>`);
+}
+function estadoCuentaGen(id){ const c=CLIENTES.find(x=>x.id===id); if(!c)return;
+  const desde=(document.getElementById('ecDesde')||{}).value||'';
+  const hasta=(document.getElementById('ecHasta')||{}).value||'';
+  const inRange=iso=>{ const d=String(iso||'').slice(0,10); if(!d)return false; if(desde&&d<desde)return false; if(hasta&&d>hasta)return false; return true; };
+  const movs=[];
+  Object.values(ENTREGAS).forEach(r=>{ if(r&&r.modo==='credito'&&r.cliente===c.nombre&&inRange(r.fechaISO)){ movs.push({iso:String(r.fechaISO).slice(0,10),doc:r.recibo,detalle:'Factura de cr\u00e9dito',cargo:+r.total||0,abono:0}); } });
+  ABONOS.forEach(a=>{ if(a&&a.cliente===c.nombre&&inRange(a.fechaISO)){ movs.push({iso:String(a.fechaISO).slice(0,10),doc:a.id,detalle:'Abono'+(a.refFactura&&a.refFactura!=='CxC'?' a '+a.refFactura:''),cargo:0,abono:+a.monto||0}); } });
+  movs.sort((x,y)=>x.iso<y.iso?-1:(x.iso>y.iso?1:0));
+  const totCargo=movs.reduce((s,x)=>s+x.cargo,0), totAbono=movs.reduce((s,x)=>s+x.abono,0);
+  const filas=movs.map(x=>`<tr><td style="padding:6px 4px">${_fmtF(x.iso)}<\/td><td style="padding:6px 4px">${esc(x.doc)}<\/td><td style="padding:6px 4px">${esc(x.detalle)}<\/td><td style="padding:6px 4px;text-align:right">${x.cargo?money(x.cargo):''}<\/td><td style="padding:6px 4px;text-align:right;color:#1b382b">${x.abono?money(x.abono):''}<\/td><\/tr>`).join('')||'<tr><td colspan=5 style="text-align:center;padding:16px;color:#6b7c68">Sin movimientos en el per\u00edodo<\/td><\/tr>';
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estado de cuenta ${esc(c.nombre)}<\/title>
+  <style>*{box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}body{margin:0;background:#f4f4f0;color:#2c2c2c}
+  .r{max-width:640px;margin:20px auto;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 6px 22px rgba(27,56,43,.15)}
+  .hd{background:#1b382b;color:#fff;padding:18px 24px}.hd h1{margin:0;font-size:18px}.hd p{margin:2px 0 0;font-size:11px;opacity:.85}
+  .bd{padding:18px 24px;font-size:13px}.cli{background:#f4f4f0;border-radius:8px;padding:10px 12px;margin-bottom:12px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;font-size:12px}thead td{border-bottom:2px solid #e2e8e0;font-weight:700;color:#1b382b;padding:6px 4px}tfoot td{border-top:2px dashed #e2e8e0;padding-top:8px;font-weight:800;color:#1b382b}
+  .tot{display:flex;justify-content:flex-end;gap:24px;margin-top:14px;font-size:13px}.tot b{color:#1b382b}.saldo{background:#c8963e;color:#fff;border-radius:10px;padding:10px 14px;margin-top:12px;text-align:right;font-size:15px;font-weight:800}
+  .ft{text-align:center;font-size:10px;color:#6b7c68;padding:0 24px 18px}.noprint{text-align:center;margin:14px}.btn{background:#c8963e;color:#fff;border:none;padding:10px 18px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px}
+  @media print{.noprint{display:none}body{background:#fff}.r{box-shadow:none;margin:0}}<\/style><\/head><body>
+  <div class="r"><div class="hd"><h1>${EMPRESA.nombre}<\/h1><p>${EMPRESA.lema} \u00b7 RUC ${EMPRESA.ruc}<\/p><p style="margin-top:8px;font-size:14px;font-weight:700">Estado de cuenta<\/p><\/div>
+  <div class="bd"><div class="cli"><b>Cliente:<\/b> ${esc(c.nombre)}${c.tel?'<br><b>Tel:<\/b> '+esc(c.tel):''}<br><b>Per\u00edodo:<\/b> ${_fmtF(desde)} \u2014 ${_fmtF(hasta)}<\/div>
+    <table><thead><tr><td>Fecha<\/td><td>Documento<\/td><td>Detalle<\/td><td style="text-align:right">Cargo<\/td><td style="text-align:right">Abono<\/td><\/tr><\/thead><tbody>${filas}<\/tbody><tfoot><tr><td colspan=3>Totales del per\u00edodo<\/td><td style="text-align:right">${money(totCargo)}<\/td><td style="text-align:right">${money(totAbono)}<\/td><\/tr><\/tfoot><\/table>
+    <div class="saldo">Saldo pendiente actual: ${money(c.saldo)}<\/div>
+    <div class="pay" style="background:#f4f4f0;border-radius:10px;padding:10px 14px;margin-top:12px;font-size:11px;line-height:1.6"><b>Pago v\u00eda ${EMPRESA.banco}<\/b><br>Cuenta N\u00b0 <b>${EMPRESA.cuenta}<\/b> \u00b7 ACH alias <b>${EMPRESA.ach}<\/b> \u00b7 WhatsApp <b>+505 ${EMPRESA.whatsapp}<\/b><\/div><\/div>
+  <div class="ft">Documento informativo generado por PG del Campo \u2014 Panel<\/div><\/div>
+  <div class="noprint"><button class="btn" onclick="window.print()">&#128424; Imprimir / Guardar PDF<\/button><\/div><\/body><\/html>`;
+  const w=window.open('','_blank','width=700,height=820'); if(!w){toast('Habilite las ventanas emergentes');return;} w.document.write(html); w.document.close(); closeModal();
+}
 
 
 /* === app2_8.js === */
@@ -1556,6 +1679,72 @@ function nuevoCupon(){
 function guardarCupon(){ const cod=document.getElementById('kCod').value.trim().toUpperCase(); if(!cod){toast('Ingrese el código');return;} CUPONES.push({codigo:cod,desc:document.getElementById('kDesc').value.trim()||'Promoción',tipo:document.getElementById('kTipo').value,valor:+document.getElementById('kVal').value||0,activo:true,usos:0}); closeModal(); refrescar(); toast('Cupón creado'); }
 
 /* ============================================================
+   ANUNCIOS (banner publicitario de la Tienda en Línea)
+   ============================================================ */
+RENDER.anuncios = function(){
+  const lista=Object.entries(ANUNCIOS).map(([id,a])=>({id,...a}));
+  const activos=lista.filter(a=>a.activo!==false).length;
+  const cards=lista.map(a=>{
+    const media = (a.tipo==='video'&&a.url)
+      ? `<div class="h-28 bg-black text-white flex items-center justify-center text-xs"><i class="fa-solid fa-video mr-1"></i> Video</div>`
+      : (a.imagen ? `<img src="${esc(a.imagen)}" alt="" class="h-28 w-full object-cover">`
+                  : `<div class="h-28 flex items-center justify-center text-white text-sm font-semibold px-3 text-center" style="background:${/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a.fondo||'')?a.fondo:'#1b382b'}">${esc(a.titulo||'Anuncio')}</div>`);
+    return `<div class="bg-white rounded-2xl shadow-soft overflow-hidden">
+      <div class="relative">${media}<span class="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full ${a.activo!==false?'bg-green-100 text-green-700':'bg-gray-200 text-gray-600'}">${a.activo!==false?'Activo':'Oculto'}</span></div>
+      <div class="p-4">
+        <h4 class="font-bold text-pg-green text-sm">${esc(a.titulo||'(sin t\u00edtulo)')}</h4>
+        <p class="text-[12px] text-pg-muted mt-1 line-clamp-2">${esc(a.descripcion||'')}</p>
+        ${a.enlace?`<p class="text-[11px] text-pg-gold2 mt-1 truncate"><i class="fa-solid fa-link mr-1"></i>${esc(a.enlace)}</p>`:''}
+        <div class="flex gap-2 mt-3">
+          <button onclick="editarAnuncio('${a.id}')" class="flex-1 text-[11px] px-2 py-1.5 rounded-md bg-pg-green text-white hover:bg-pg-green2"><i class="fa-solid fa-pen"></i> Editar</button>
+          <button onclick="toggleAnuncio('${a.id}')" class="text-[11px] px-2 py-1.5 rounded-md bg-pg-gold text-white hover:bg-pg-gold2">${a.activo!==false?'Ocultar':'Mostrar'}</button>
+          <button onclick="delAnuncio('${a.id}')" class="text-[11px] px-2 py-1.5 rounded-md bg-red-100 text-red-600 hover:bg-red-200"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div></div>`;
+  }).join('');
+  document.getElementById('view-anuncios').innerHTML=`
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div class="text-sm text-pg-muted"><i class="fa-solid fa-bullhorn text-pg-gold mr-1"></i> ${lista.length} anuncio(s) \u00b7 ${activos} activo(s) \u00b7 se muestran en el banner de la Tienda en L\u00ednea (en orden aleatorio al recargar).</div>
+    <button onclick="nuevoAnuncio()" class="py-2 px-4 rounded-lg bg-pg-gold hover:bg-pg-gold2 text-white text-sm font-semibold"><i class="fa-solid fa-plus mr-1"></i> Nuevo anuncio</button>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">${cards||'<div class="col-span-full bg-white rounded-2xl shadow-soft p-8 text-center text-pg-muted">A\u00fan no hay anuncios. Cree el primero para promocionar ofertas, negocios destacados o novedades en la tienda.</div>'}</div>`;
+};
+function toggleAnuncio(id){ const a=ANUNCIOS[id]; if(!a)return; a.activo=(a.activo===false); saveAnuncios(); cloudSetAnuncio(id,a); refrescar(); toast(a.activo===false?'Anuncio oculto':'Anuncio visible'); }
+function delAnuncio(id){ const a=ANUNCIOS[id]; if(!a)return; if(!confirm('\u00bfEliminar el anuncio "'+(a.titulo||id)+'"?'))return; delete ANUNCIOS[id]; saveAnuncios(); cloudRemoveAnuncio(id); refrescar(); toast('Anuncio eliminado'); }
+function nuevoAnuncio(){ _formAnuncio('',{tipo:'imagen',fondo:'#1b382b',activo:true}); }
+function editarAnuncio(id){ const a=ANUNCIOS[id]; if(!a)return; _formAnuncio(id,a); }
+function _formAnuncio(id,a){
+  a=a||{};
+  const esV=a.tipo==='video';
+  openModal(`<div class="p-5 max-h-[80vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="font-bold text-pg-green">${id?'Editar anuncio':'Nuevo anuncio'}</h3><button onclick="closeModal()" class="text-pg-muted"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="space-y-3 text-sm">
+      <div><label class="text-xs font-semibold">T\u00edtulo</label><input id="anTit" value="${esc(a.titulo||'')}" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-pg-gold" placeholder="Ej: Oferta de caf\u00e9 tostado"></div>
+      <div><label class="text-xs font-semibold">Texto / descripci\u00f3n</label><textarea id="anDesc" rows="2" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-pg-gold" placeholder="Promoci\u00f3n, negocio destacado, d\u00f3nde encontrar nuestros productos…">${esc(a.descripcion||'')}</textarea></div>
+      <div><label class="text-xs font-semibold">Enlace (opcional, http/https)</label><input id="anLink" value="${esc(a.enlace||'')}" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-pg-gold" placeholder="https://…"></div>
+      <div><label class="text-xs font-semibold">Tipo de contenido</label><select id="anTipo" onchange="_anTipoUI()" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200"><option value="imagen"${esV?'':' selected'}>Imagen</option><option value="video"${esV?' selected':''}>Video (embed)</option></select></div>
+      <div id="anBoxImg" class="${esV?'hidden':''}"><label class="text-xs font-semibold">URL de la imagen</label><input id="anImg" value="${esc(a.imagen||'')}" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-pg-gold" placeholder="https://…/imagen.jpg"></div>
+      <div id="anBoxVid" class="${esV?'':'hidden'}"><label class="text-xs font-semibold">URL de video (embed)</label><input id="anUrl" value="${esc(a.url||'')}" class="w-full mt-1 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-pg-gold" placeholder="https://www.youtube.com/embed/ID"><p class="text-[10px] text-pg-muted mt-1">Use el enlace “incrustar/embed” (YouTube: /embed/ID).</p></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="text-xs font-semibold">Color de fondo</label><input id="anFondo" type="color" value="${/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a.fondo||'')?a.fondo:'#1b382b'}" class="w-full mt-1 h-10 rounded-lg border border-gray-200"></div><div class="flex items-end"><label class="inline-flex items-center gap-2 text-sm"><input id="anAct" type="checkbox" ${a.activo!==false?'checked':''}> Activo (visible en la tienda)</label></div></div>
+    </div>
+    <div class="flex gap-2 mt-5"><button onclick="closeModal()" class="flex-1 py-2.5 rounded-lg bg-gray-100 text-sm font-semibold">Cancelar</button><button onclick="guardarAnuncio('${id}')" class="flex-1 py-2.5 rounded-lg bg-pg-gold hover:bg-pg-gold2 text-white text-sm font-semibold">Guardar</button></div></div>`);
+}
+function _anTipoUI(){ const v=(document.getElementById('anTipo')||{}).value; const bi=document.getElementById('anBoxImg'), bv=document.getElementById('anBoxVid'); if(bi)bi.classList.toggle('hidden',v==='video'); if(bv)bv.classList.toggle('hidden',v!=='video'); }
+function guardarAnuncio(id){
+  const tit=(document.getElementById('anTit').value||'').trim();
+  const tipo=(document.getElementById('anTipo').value||'imagen');
+  const link=(document.getElementById('anLink').value||'').trim();
+  const img=(document.getElementById('anImg').value||'').trim();
+  const url=(document.getElementById('anUrl').value||'').trim();
+  if(!tit){ toast('Indique un t\u00edtulo'); return; }
+  if(link&&!/^https?:\/\//i.test(link)){ toast('El enlace debe iniciar con http:// o https://'); return; }
+  if(tipo==='video'&&!url){ toast('Indique la URL del video (embed)'); return; }
+  if(tipo==='imagen'&&!img){ toast('Indique la URL de la imagen'); return; }
+  const aid=id||('AN'+Date.now().toString().slice(-8));
+  const a={ titulo:tit, descripcion:(document.getElementById('anDesc').value||'').trim(), enlace:link, tipo:tipo, imagen:(tipo==='imagen'?img:''), url:(tipo==='video'?url:''), fondo:(document.getElementById('anFondo').value||'#1b382b'), activo:!!document.getElementById('anAct').checked };
+  ANUNCIOS[aid]=a; saveAnuncios(); cloudSetAnuncio(aid,a); closeModal(); refrescar(); toast(id?'Anuncio actualizado':'Anuncio creado');
+}
+
+/* ============================================================
    TRANSACCIONES
    ============================================================ */
 RENDER.transacciones = function(){
@@ -1577,7 +1766,7 @@ RENDER.transacciones = function(){
     <div class="bg-white rounded-xl shadow-soft px-4 py-3"><span class="text-[11px] text-pg-muted">Pendientes</span><br><b class="text-lg text-red-600">${TRANSACCIONES.filter(t=>t.estado!=='Confirmada').length}</b></div>
   </div>
   <div class="bg-white rounded-2xl shadow-soft"><div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-money-bill-transfer text-pg-gold mr-2"></i>Historial de Transacciones</h3></div>
-    <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">ID</th><th class="px-3 py-2 text-left">Recibo</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Método</th><th class="px-3 py-2 text-right">Monto</th><th class="px-3 py-2 text-center">Estado</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left">ID</th><th class="px-3 py-2 text-left">Factura</th><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Método</th><th class="px-3 py-2 text-right">Monto</th><th class="px-3 py-2 text-center">Estado</th></tr></thead><tbody>${rows}</tbody></table></div>
   </div>`;
 };
 
@@ -1623,9 +1812,9 @@ RENDER.reportes = function(){
   <p class="text-[11px] text-pg-muted mt-4"><i class="fa-solid fa-circle-info"></i> Los reportes se descargan como archivo CSV compatible con Excel.</p>`;
 };
 function dl(nombre,filas){ const csv=filas.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(',')).join('\n'); const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=nombre; a.click(); URL.revokeObjectURL(a.href); toast('Reporte '+nombre+' generado'); }
-function repVentas(){ dl('ventas.csv',[['Hora','Recibo','Origen','Cliente','Metodo','Total'],...VENTAS.map(v=>[v.hora,v.recibo,v.origen,v.cliente,v.metodo,v.total])]); }
+function repVentas(){ dl('ventas.csv',[['Hora','Factura','Origen','Cliente','Metodo','Total'],...VENTAS.map(v=>[v.hora,v.recibo,v.origen,v.cliente,v.metodo,v.total])]); }
 function repInventario(){ dl('inventario.csv',[['Codigo','Producto','Categoria','Stock','Minimo','Costo','ValorStock','Estado'],...PRODUCTOS.map(p=>[p.id,p.nombre,p.cat,p.control?p.stock:'',p.control?p.min:'',p.costo,p.stock*p.costo,STOCK_META[stockState(p)].label])]); }
-function repPedidos(){ dl('pedidos.csv',[['Recibo','Origen','Cliente','Detalle','Total','Pago','Estado','Fecha'],...PEDIDOS.map(p=>[p.recibo,p.origen,p.cliente,p.items.map(i=>i.q+'x '+i.n).join(' | '),p.total,p.pago,p.estado,p.fecha])]); }
+function repPedidos(){ dl('pedidos.csv',[['Factura','Origen','Cliente','Detalle','Total','Pago','Estado','Fecha'],...PEDIDOS.map(p=>[p.recibo,p.origen,p.cliente,p.items.map(i=>i.q+'x '+i.n).join(' | '),p.total,p.pago,p.estado,p.fecha])]); }
 function repClientes(){ dl('clientes.csv',[['Nombre','Telefono','Tarjeta','Compras','Puntos','Saldo'],...CLIENTES.map(c=>[c.nombre,c.tel,c.tarjeta,c.compras,c.puntos,c.saldo])]); }
 
 /* ============================================================
@@ -1787,7 +1976,7 @@ RENDER.ingresos = function(){
     <div class="bg-white rounded-2xl shadow-soft p-5"><h3 class="font-bold text-pg-green mb-4"><i class="fa-solid fa-chart-pie text-pg-gold mr-2"></i>Distribución de ingresos</h3><canvas id="pieIng" height="180"></canvas></div>
     <div class="bg-white rounded-2xl shadow-soft lg:col-span-2"><div class="px-5 py-4 border-b border-gray-100"><h3 class="font-bold text-pg-green"><i class="fa-solid fa-list text-pg-gold mr-2"></i>Detalle de ingresos</h3></div>
       <div class="overflow-x-auto"><table class="w-full text-sm">
-        <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Recibo</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-right">Venta</th><th class="px-3 py-2 text-right">Envío</th><th class="px-3 py-2 text-right">Otros</th><th class="px-3 py-2 text-center">Método</th></tr></thead>
+        <thead class="bg-pg-cream text-pg-muted text-[11px] uppercase"><tr><th class="px-3 py-2 text-left"># Factura</th><th class="px-3 py-2 text-left">Origen</th><th class="px-3 py-2 text-left">Cliente</th><th class="px-3 py-2 text-right">Venta</th><th class="px-3 py-2 text-right">Envío</th><th class="px-3 py-2 text-right">Otros</th><th class="px-3 py-2 text-center">Método</th></tr></thead>
         <tbody>${rows||'<tr><td colspan=7 class="text-center py-6 text-pg-muted">Sin ingresos registrados</td></tr>'}</tbody>
       </table></div>
     </div>
