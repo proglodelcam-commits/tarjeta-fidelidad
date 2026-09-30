@@ -17,10 +17,8 @@
 <meta name="msapplication-TileColor" content="#1b382b">
 <meta name="msapplication-TileImage" content="android-chrome-192x192.png">
 <meta name="apple-mobile-web-app-title" content="Tienda PG">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="vendor/fonts/fonts.css" rel="stylesheet">
+<link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
 <style>
 :root{
   --primary-color:#2E7D32;--primary-light:#4CAF50;--primary-dark:#1B5E20;
@@ -1149,6 +1147,7 @@ window.evaluarTecla=evaluarTecla;
 <script type="module">
 import{initializeApp}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import{getDatabase,ref,onValue,get,set,update}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+import{getAuth,signInAnonymously,onAuthStateChanged}from'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
 const cfg={
   apiKey:'AIzaSyBfPmfE6axd_W0Z80b0L-Jbjy6q7l9_NTk',
@@ -1160,7 +1159,9 @@ const cfg={
   appId:'1:938958452862:web:3b618567dae9aa01b7c02f',
   measurementId:'G-MKD9T10DP3'
 };
-const db=getDatabase(initializeApp(cfg));
+const _app=initializeApp(cfg);
+const db=getDatabase(_app);
+const _auth=getAuth(_app);
 
 let productos={},clientes={},carrito=[],cActual=null;
 const WA='50557973097';
@@ -1181,11 +1182,17 @@ const $=id=>document.getElementById(id),
       E=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[x]));
 
 /* ── Listeners de Firebase (tiempo real) ── */
-onValue(ref(db,'productos'),s=>{productos=s.val()||{};render()});
-onValue(ref(db,'clientes'),s=>{clientes=s.val()||{};cliente()});
-onValue(ref(db,'anuncios'),s=>{renderCarrusel(s.val()||{})});
-/* Siembra automática del catálogo si la nube está vacía */
-get(ref(db,'productos')).then(s=>{ if(!s.exists()||!Object.keys(s.val()||{}).length){ set(ref(db,'productos'),SEED_PRODUCTOS); } }).catch(()=>{});
+function startSync(){
+  onValue(ref(db,'productos'),s=>{productos=s.val()||{};render()});
+  onValue(ref(db,'clientes'),s=>{clientes=s.val()||{};cliente()});
+  onValue(ref(db,'anuncios'),s=>{renderCarrusel(s.val()||{})});
+  /* Siembra automática del catálogo si la nube está vacía */
+  get(ref(db,'productos')).then(s=>{ if(!s.exists()||!Object.keys(s.val()||{}).length){ set(ref(db,'productos'),SEED_PRODUCTOS); } }).catch(()=>{});
+}
+/* Autenticación anónima antes de tocar la base de datos (requerida por las reglas). */
+let _syncStarted=false;
+onAuthStateChanged(_auth,u=>{ if(u&&!_syncStarted){ _syncStarted=true; startSync(); } });
+signInAnonymously(_auth).catch(e=>{ console.warn('Auth anónima falló',e); if(!_syncStarted){ _syncStarted=true; startSync(); } });
 
 /* ── Carrusel de Anuncios ── */
 let _carruselTimer=null;
@@ -1193,6 +1200,8 @@ function renderCarrusel(anuncios){
   const box=document.getElementById('carrusel-container');
   if(!box)return;
   const activos=Object.entries(anuncios).filter(([_,v])=>v.activo!==false).map(([k,v])=>({id:k,...v}));
+  /* Orden aleatorio: baraja los anuncios en cada recarga de la página (Fisher-Yates). */
+  for(let i=activos.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=activos[i];activos[i]=activos[j];activos[j]=t;}
   if(!activos.length){
     box.innerHTML='<div class="carrusel-empty"><i class="fas fa-bullhorn" style="margin-right:6px"></i>Próximamente más promociones</div>';
     if(_carruselTimer){clearInterval(_carruselTimer);_carruselTimer=null;}
@@ -1200,13 +1209,17 @@ function renderCarrusel(anuncios){
   }
   let html='<div class="carrusel-wrap"><div class="carrusel-track" id="carrusel-track">';
   activos.forEach(function(a){
-    html+='<div class="carrusel-slide">';
+    /* Solo se acepta enlace http(s) para evitar esquemas peligrosos (javascript:, data:). */
+    var href=(a.enlace&&/^https?:\/\//i.test(a.enlace))?a.enlace:'';
+    var fondo=(a.fondo&&/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(a.fondo))?a.fondo:'';
+    html+='<div class="carrusel-slide"'+(fondo?' style="background:'+fondo+'"':'')+'>';
+    if(href)html+='<a href="'+E(href)+'" target="_blank" rel="noopener noreferrer" style="display:block;width:100%">';
     if(a.tipo==='video'&&a.url){
-      html+='<iframe src="'+a.url+'" allow="autoplay;encrypted-media" allowfullscreen loading="lazy"></iframe>';
+      html+='<iframe src="'+E(a.url)+'" allow="autoplay;encrypted-media" allowfullscreen loading="lazy"></iframe>';
     }else if(a.imagen){
-      html+='<img src="'+a.imagen+'" alt="'+(a.titulo||'Anuncio')+'" loading="lazy">';
+      html+='<img src="'+E(a.imagen)+'" alt="'+(a.titulo?E(a.titulo):'Anuncio')+'" loading="lazy">';
     }else{
-      html+='<div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;background:var(--primary);color:#fff;font-size:15px;font-weight:600;padding:20px;text-align:center">'+(a.titulo||'Anuncio')+'</div>';
+      html+='<div style="width:100%;height:180px;display:flex;align-items:center;justify-content:center;background:'+(fondo||'var(--primary)')+';color:#fff;font-size:15px;font-weight:600;padding:20px;text-align:center">'+(a.titulo?E(a.titulo):'Anuncio')+'</div>';
     }
     if(a.titulo||a.descripcion){
       html+='<div class="slide-overlay">';
@@ -1214,6 +1227,7 @@ function renderCarrusel(anuncios){
       if(a.descripcion)html+='<p>'+E(a.descripcion)+'</p>';
       html+='</div>';
     }
+    if(href)html+='</a>';
     html+='</div>';
   });
   html+='</div>';

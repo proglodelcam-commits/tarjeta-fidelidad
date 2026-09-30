@@ -31,9 +31,7 @@
 <meta property="og:type" content="website">
 <meta property="og:image" content="android-chrome-512x512.png">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="vendor/fonts/fonts.css" rel="stylesheet">
 <style>
 :root {
   --primary: #1b382b;
@@ -759,7 +757,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
             Confirmar Pedido por WhatsApp
           </button>
           <button id="btn-recibo" class="btn-action btn-recibo" onclick="generarEImprimirRecibo()" disabled>
-            Generar e Imprimir Recibo
+            Generar e Imprimir Factura
           </button>
         </div>
       </div>
@@ -782,7 +780,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
 <div id="receipt-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header no-print">
-      <h3 style="font-family: 'Fraunces', serif; color:var(--primary);">Recibo Oficial de Orden</h3>
+      <h3 style="font-family: 'Fraunces', serif; color:var(--primary);">Factura Oficial de Orden</h3>
       <button class="btn-close-modal" onclick="cerrarModalRecibo()">X</button>
     </div>
 
@@ -792,7 +790,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
       <div style="text-align:center; font-size:10px; font-weight:bold; margin-bottom:2px;">Régimen de Cuota Fija</div>
       <div style="text-align:center; font-size:10.5px; margin-bottom:8px;">Jinotepe, Carazo, Nicaragua</div>
 
-      <div style="margin-bottom:4px;"><strong>No. Recibo:</strong> <span id="rec-num">0000000</span></div>
+      <div style="margin-bottom:4px;"><strong>No. Factura:</strong> <span id="rec-num">0000000</span></div>
       <div style="margin-bottom:8px;"><strong>Fecha Emisión:</strong> <span id="rec-date">--/--/----</span></div>
       <hr style="border:none; border-top:1px dashed #ccc; margin:8px 0;">
 
@@ -838,9 +836,10 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, get, child, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AlzaSyBfPmfE6axd_WOZ80b0L-Jbjy6q719_NTk",
+  apiKey: "AIzaSyBfPmfE6axd_W0Z80b0L-Jbjy6q7l9_NTk",
   authDomain: "productos-globales-campo.firebaseapp.com",
   databaseURL: "https://productos-globales-campo-default-rtdb.firebaseio.com",
   projectId: "productos-globales-campo",
@@ -852,6 +851,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+/* Autenticación anónima requerida por las reglas de la base de datos. */
+signInAnonymously(getAuth(app)).catch(function(e){ console.warn('Auth anónima falló', e); });
 
 let carrito = [];
 let productosData = {};
@@ -1256,7 +1257,7 @@ window.procesarPagoWhatsApp = async function() {
 
   let msj = '*NUEVO PEDIDO - PG DEL CAMPO*\n';
   msj += '=============================\n';
-  msj += `*Recibo N°:* ${numeroReciboFormateado}\n`;
+  msj += `*Factura N°:* ${numeroReciboFormateado}\n`;
   msj += `*Cliente:* ${cliente}\n`;
   msj += `*Teléfono:* ${telf}\n`;
   msj += '=============================\n\n';

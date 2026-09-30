@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "productos":  { ".read": true, ".write": "auth != null" },
+    "anuncios":   { ".read": true, ".write": "auth != null && auth.uid === 'slAeAMWcUuba3qgVlGifUis8Up92'" },
+
+    "clientes":                   { ".read": "auth != null", ".write": "auth != null" },
+    "clientes_historial_compras": { ".read": "auth != null", ".write": "auth != null" },
+    "transacciones":              { ".read": "auth != null", ".write": "auth != null" },
+    "compras_registro":           { ".read": "auth != null", ".write": "auth != null" },
+    "cuentas_por_cobrar":         { ".read": "auth != null", ".write": "auth != null" },
+    "pedidos_estado":             { ".read": "auth != null", ".write": "auth != null" },
+    "meta":                       { ".read": "auth != null", ".write": "auth != null" },
+    "secuencia_recibos":          { ".read": "auth != null", ".write": "auth != null" }
+  }
+}
