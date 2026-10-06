@@ -212,55 +212,48 @@ tr:hover td{background:#fafbfa}
 
     <!-- ===== FACTURAS DE COMPRA ===== -->
     <div class="card" id="facturas-nueva-card">
-      <h2>🧾 Nueva factura de compra</h2>
-      <p class="sub">Detalla la compra del cliente. La factura nace <b>pendiente</b>. Al <b>confirmar el pago</b> se da <b>salida</b> de inventario y se suma la compra al cliente; si el cliente <b>no paga o cancela</b>, <b>anúlala</b> y los productos <b>regresan</b> al inventario.</p>
-      <div class="grid-form">
-        <div class="field"><label>Teléfono del cliente</label><input type="text" id="fc-tel" placeholder="8888 8888" oninput="autoNombreCliente()"></div>
-        <div class="field"><label>Nombre del cliente</label><input type="text" id="fc-nombre" placeholder="Nombre y apellido"></div>
-        <div class="field"><label>Método de pago</label>
-          <select id="fc-metodo">
-            <option value="transferencia">Transferencia</option>
-            <option value="efectivo">Efectivo</option>
-            <option value="link">Link de pago</option>
-            <option value="qr">QR</option>
-          </select>
+      <h2>🧾 Facturas de compra</h2>
+      <p class="sub">Las facturas se <b>generan solas</b> desde la <b>tienda en línea</b> y desde la <b>Tarjeta de Fidelidad</b>, cada una con su <b>número de factura</b> y todo su detalle (productos, cantidad, fecha y cliente). Nacen en estado <b>pendiente</b>. Al <b>confirmar el pago</b> se da <b>salida</b> de inventario y se suma la compra al cliente; si el cliente <b>no paga o cancela</b>, <b>anula/elimina por el número de factura</b> y los productos <b>regresan</b> al inventario.</p>
+      <details style="margin-top:6px">
+        <summary style="cursor:pointer;font-weight:600;color:var(--primary);font-size:.9rem">Registrar manualmente una factura externa (opcional)</summary>
+        <p class="sub" style="margin-top:8px">Úsalo solo para una factura de la tienda en línea que quieras controlar aquí. Indica su número y el total; el inventario de la tienda lo gestiona la propia tienda.</p>
+        <div class="grid-form">
+          <div class="field"><label>Número de factura *</label><input type="text" id="fc-numero" placeholder="0001234"></div>
+          <div class="field"><label>Teléfono del cliente</label><input type="text" id="fc-tel" placeholder="8888 8888" oninput="autoNombreCliente()"></div>
+          <div class="field"><label>Nombre del cliente</label><input type="text" id="fc-nombre" placeholder="Nombre y apellido"></div>
+          <div class="field"><label>Método de pago</label>
+            <select id="fc-metodo">
+              <option value="transferencia">Transferencia</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="link">Link de pago</option>
+              <option value="qr">QR</option>
+            </select>
+          </div>
+          <div class="field"><label>Total (C$) *</label><input type="number" id="fc-total-ext" min="0" step="0.01" placeholder="0.00"></div>
         </div>
-      </div>
-      <h2 style="font-size:.92rem;margin-top:12px">Productos de la factura</h2>
-      <div class="tier-row" style="grid-template-columns:1fr 110px auto;align-items:end">
-        <div class="field"><label>Producto</label><select id="fc-prod"></select></div>
-        <div class="field"><label>Cantidad</label><input type="number" id="fc-cant" min="1" step="1" value="1"></div>
-        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="agregarItemFactura()">+ Añadir</button>
-      </div>
-      <div class="tbl-wrap" style="margin-top:8px">
-        <table>
-          <thead><tr><th>Producto</th><th>Precio</th><th>Cant.</th><th>Importe</th><th></th></tr></thead>
-          <tbody id="fc-items"><tr><td colspan="5" class="loading">Añade productos a la factura…</td></tr></tbody>
-        </table>
-      </div>
-      <p style="text-align:right;margin:10px 0;font-weight:700;font-size:1rem">Total: C$ <span id="fc-total">0.00</span></p>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="crearFactura()">Crear factura (pendiente)</button>
-        <button class="btn btn-sm" style="background:#eef2ee;color:var(--muted)" onclick="limpiarFactura()">Limpiar</button>
-      </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="crearFacturaExterna()">Registrar factura (pendiente)</button>
+          <button class="btn btn-sm" style="background:#eef2ee;color:var(--muted)" onclick="limpiarFactura()">Limpiar</button>
+        </div>
+      </details>
     </div>
 
     <div class="card">
       <h2>Facturas registradas</h2>
-      <p class="sub">Pendientes de pago, pagadas (salida de inventario) y anuladas (reingreso al inventario).</p>
+      <p class="sub">Pendientes de pago, pagadas (salida de inventario) y anuladas (reingreso al inventario). Búscalas por su número de factura.</p>
       <div class="form-actions" style="margin-top:0;margin-bottom:12px">
+        <input type="text" id="fc-buscar" placeholder="Buscar por número de factura, cliente o teléfono…" style="flex:1;min-width:200px;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.9rem" oninput="pintarFacturas()">
         <select id="fc-filtro" onchange="pintarFacturas()" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.9rem">
           <option value="todas">Todas</option>
           <option value="pendiente">Pendientes</option>
           <option value="pagada">Pagadas</option>
-          <option value="anulada">Anuladas</option>
         </select>
         <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="cargarFacturas()">↻ Actualizar</button>
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Fecha</th><th>Cliente</th><th>Detalle</th><th>Total</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead>
-          <tbody id="tbody-facturas"><tr><td colspan="7" class="loading">Cargando facturas…</td></tr></tbody>
+          <thead><tr><th>Nº Factura</th><th>Fecha</th><th>Cliente</th><th>Detalle</th><th>Total</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody-facturas"><tr><td colspan="8" class="loading">Cargando facturas…</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -454,7 +447,6 @@ async function cargarProductos(){
     const snap = await get(child(ref(db),'productos'));
     productos = snap.exists() ? snap.val() : {};
     pintarProductos();
-    rellenarSelectProductos();
   }catch(e){ console.error(e); tb.innerHTML='<tr><td colspan="9" class="loading" style="color:var(--danger)">Error al cargar productos</td></tr>'; }
 }
 
@@ -676,23 +668,8 @@ window.pintarClientes = function(){
 
 // ===== FACTURAS DE COMPRA E INVENTARIO =====
 let facturas = {};
-let itemsFactura = [];
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const nombreMetodo = m => ({transferencia:'Transferencia',efectivo:'Efectivo',link:'Link de pago',qr:'QR'}[m]||m||'—');
-
-function rellenarSelectProductos(){
-  const sel = $('fc-prod'); if(!sel) return;
-  const keys = Object.keys(productos||{});
-  if(!keys.length){ sel.innerHTML='<option value="">No hay productos</option>'; return; }
-  const prev = sel.value;
-  sel.innerHTML = keys.map(k=>{
-    const p = productos[k]||{};
-    const stock = parseInt(p.stock||0);
-    return `<option value="${k}">${esc(p.nombre||'Producto')} — C$ ${(parseFloat(p.precio)||0).toFixed(2)} (stock: ${stock})</option>`;
-  }).join('');
-  if(prev && productos[prev]) sel.value = prev;
-}
-window.rellenarSelectProductos = rellenarSelectProductos;
 
 window.autoNombreCliente = function(){
   const tel = ($('fc-tel').value||'').trim();
@@ -701,67 +678,39 @@ window.autoNombreCliente = function(){
   }
 };
 
-window.agregarItemFactura = function(){
-  const k = $('fc-prod').value;
-  const cant = parseInt($('fc-cant').value)||0;
-  if(!k || !productos[k]){ toast('Selecciona un producto',true); return; }
-  if(cant<1){ toast('La cantidad debe ser al menos 1',true); return; }
-  const p = productos[k];
-  const existe = itemsFactura.find(it=>it.prodKey===k);
-  if(existe){ existe.cantidad += cant; }
-  else { itemsFactura.push({ prodKey:k, nombre:p.nombre||'Producto', precio:parseFloat(p.precio)||0, cantidad:cant }); }
-  $('fc-cant').value = 1;
-  pintarItemsFactura();
-};
-
-window.quitarItemFactura = function(i){ itemsFactura.splice(i,1); pintarItemsFactura(); };
-
-function totalFactura(){ return itemsFactura.reduce((s,it)=>s + it.precio*it.cantidad, 0); }
-
-function pintarItemsFactura(){
-  const tb = $('fc-items');
-  if(!itemsFactura.length){ tb.innerHTML='<tr><td colspan="5" class="loading">Añade productos a la factura…</td></tr>'; }
-  else {
-    tb.innerHTML = itemsFactura.map((it,i)=>`<tr>
-      <td>${esc(it.nombre)}</td>
-      <td>C$ ${it.precio.toFixed(2)}</td>
-      <td>${it.cantidad}</td>
-      <td>C$ ${(it.precio*it.cantidad).toFixed(2)}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="quitarItemFactura(${i})">✕</button></td>
-    </tr>`).join('');
-  }
-  $('fc-total').textContent = totalFactura().toFixed(2);
-}
-
 window.limpiarFactura = function(){
-  itemsFactura = [];
-  $('fc-tel').value=''; $('fc-nombre').value=''; $('fc-metodo').value='transferencia'; $('fc-cant').value=1;
-  pintarItemsFactura();
+  ['fc-numero','fc-tel','fc-nombre','fc-total-ext'].forEach(id=>{ if($(id)) $(id).value=''; });
+  if($('fc-metodo')) $('fc-metodo').value='transferencia';
 };
 
-window.crearFactura = async function(){
-  if(!itemsFactura.length){ toast('Añade al menos un producto',true); return; }
+// Registrar manualmente una factura externa (tienda en línea) por su número
+window.crearFacturaExterna = async function(){
+  const numero = ($('fc-numero').value||'').trim();
+  const total = parseFloat($('fc-total-ext').value);
+  if(!numero){ toast('Indica el número de factura',true); return; }
+  if(isNaN(total) || total<0){ toast('Indica un total válido',true); return; }
   const tel = ($('fc-tel').value||'').trim();
   const nombre = ($('fc-nombre').value||'').trim() || (tel && clientes[tel]?.nombre) || 'Cliente de mostrador';
   const factura = {
+    numero,
+    origen: 'tienda',
     cliente_tel: tel,
     cliente_nombre: nombre,
     metodo_pago: $('fc-metodo').value,
-    items: itemsFactura.map(it=>({ prodKey:it.prodKey, nombre:it.nombre, precio:it.precio, cantidad:it.cantidad })),
-    total: totalFactura(),
+    items: [],
+    total,
     estado: 'pendiente',
     stock_descontado: false,
     creada: new Date().toISOString(),
-    pagada: null,
-    anulada: null
+    pagada: null
   };
   try{
     const nuevo = push(ref(db,'facturas'));
     await set(nuevo, factura);
-    toast('Factura creada (pendiente) ✔');
+    toast('Factura '+numero+' registrada (pendiente) ✔');
     limpiarFactura();
     await cargarFacturas();
-  }catch(e){ console.error(e); toast('Error al crear la factura',true); }
+  }catch(e){ console.error(e); toast('Error al registrar la factura',true); }
 };
 
 async function cargarFacturas(){
@@ -770,35 +719,44 @@ async function cargarFacturas(){
     const snap = await get(child(ref(db),'facturas'));
     facturas = snap.exists() ? snap.val() : {};
     pintarFacturas();
-  }catch(e){ console.error(e); if(tb) tb.innerHTML='<tr><td colspan="7" class="loading" style="color:var(--danger)">Error al cargar facturas</td></tr>'; }
+  }catch(e){ console.error(e); if(tb) tb.innerHTML='<tr><td colspan="8" class="loading" style="color:var(--danger)">Error al cargar facturas</td></tr>'; }
 }
 window.cargarFacturas = cargarFacturas;
 
 window.pintarFacturas = function(){
   const tb = $('tbody-facturas'); if(!tb) return;
   const filtro = ($('fc-filtro')?.value)||'todas';
+  const q = ($('fc-buscar')?.value||'').trim().toLowerCase();
   let keys = Object.keys(facturas||{});
   keys.sort((a,b)=> new Date(facturas[b].creada||0) - new Date(facturas[a].creada||0));
   if(filtro!=='todas') keys = keys.filter(k => (facturas[k].estado||'pendiente')===filtro);
-  if(!keys.length){ tb.innerHTML='<tr><td colspan="7" class="loading">No hay facturas en esta vista.</td></tr>'; return; }
+  if(q) keys = keys.filter(k=>{
+    const f = facturas[k]||{};
+    return String(f.numero||'').toLowerCase().includes(q)
+        || String(f.cliente_nombre||'').toLowerCase().includes(q)
+        || String(f.cliente_tel||'').toLowerCase().includes(q);
+  });
+  if(!keys.length){ tb.innerHTML='<tr><td colspan="8" class="loading">No hay facturas en esta vista.</td></tr>'; return; }
   tb.innerHTML = keys.map(k=>{
     const f = facturas[k]||{};
     const estado = f.estado||'pendiente';
     const items = Array.isArray(f.items)?f.items:[];
-    const detalle = items.map(it=>`${esc(it.nombre)} ×${it.cantidad}`).join(', ') || '—';
+    const detalle = items.length
+        ? items.map(it=>`${esc(it.nombre)} ×${it.cantidad}`).join(', ')
+        : (f.origen==='tienda' ? '<span class="hint">Factura de la tienda en línea</span>' : '—');
+    const num = esc(f.numero||'—');
+    const origen = f.origen==='tienda' ? ' 🛒' : (f.origen==='tarjeta' ? ' ⭐' : '');
     const cliente = `${esc(f.cliente_nombre||'Cliente')}${f.cliente_tel?('<br><span class="hint">'+esc(f.cliente_tel)+'</span>'):''}`;
     let pill, acciones='';
     if(estado==='pagada'){
       pill = '<span class="pill ok">✔ Pagada (salida)</span>';
-      acciones = `<button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular (reingreso)</button>`;
-    } else if(estado==='anulada'){
-      pill = '<span class="pill no">✕ Anulada</span>';
-      acciones = '<span class="hint">—</span>';
+      acciones = `<button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular / eliminar</button>`;
     } else {
       pill = '<span class="pill" style="background:#fff3dc;color:#9a6b12">⏳ Pendiente</span>';
-      acciones = `<div class="acts"><button class="btn btn-sm" style="background:#e8f5e9;color:var(--primary)" onclick="confirmarPagoFactura('${k}')">✔ Confirmar pago</button><button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular</button></div>`;
+      acciones = `<div class="acts"><button class="btn btn-sm" style="background:#e8f5e9;color:var(--primary)" onclick="confirmarPagoFactura('${k}')">✔ Confirmar pago</button><button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular / eliminar</button></div>`;
     }
     return `<tr>
+      <td><strong>${num}</strong>${origen}</td>
       <td>${fechaCorta(f.creada)}</td>
       <td>${cliente}</td>
       <td style="max-width:220px">${detalle}</td>
@@ -843,14 +801,14 @@ window.confirmarPagoFactura = async function(k){
   }catch(e){ console.error(e); toast('Error al confirmar el pago',true); }
 };
 
-// Anular: si hubo salida, INGRESO (regresa productos al inventario) y revierte la compra
+// Anular / eliminar por número de factura: si hubo salida, INGRESO (regresa productos) y revierte la compra; luego elimina la factura
 window.anularFactura = async function(k){
   const f = facturas[k]; if(!f) return;
-  if((f.estado||'pendiente')==='anulada'){ toast('La factura ya está anulada',true); return; }
   const erapagada = (f.estado==='pagada') || f.stock_descontado;
+  const numero = f.numero ? ('Nº '+f.numero) : 'esta factura';
   const msg = erapagada
-    ? 'Anular esta factura PAGADA?\nLos productos REGRESARÁN al inventario (ingreso) y se restará la compra del cliente.'
-    : 'Anular esta factura pendiente? (el cliente no pagó o canceló)';
+    ? 'Anular y eliminar '+numero+' (PAGADA)?\nLos productos REGRESARÁN al inventario (ingreso) y se restará la compra del cliente.'
+    : 'Eliminar '+numero+'? (el cliente no pagó o canceló la compra)';
   if(!confirm(msg)) return;
   const items = Array.isArray(f.items)?f.items:[];
   try{
@@ -873,8 +831,9 @@ window.anularFactura = async function(k){
         await set(ref(db,'clientes/'+tel), Object.assign({}, c, actualizado));
       }
     }
-    await set(ref(db,'facturas/'+k), Object.assign({}, f, { estado:'anulada', stock_descontado:false, anulada:new Date().toISOString() }));
-    toast(erapagada ? 'Factura anulada: ingreso al inventario ✔' : 'Factura anulada');
+    // Eliminar la factura por su número
+    await remove(ref(db,'facturas/'+k));
+    toast(erapagada ? 'Factura eliminada: ingreso al inventario ✔' : 'Factura eliminada');
     await cargarProductos(); await cargarClientes(); await cargarFacturas();
   }catch(e){ console.error(e); toast('Error al anular la factura',true); }
 };

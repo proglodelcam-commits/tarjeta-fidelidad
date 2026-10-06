@@ -1210,40 +1210,40 @@ window.calcularTotales = function() {
 async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   const tel = document.getElementById('cliente-tel').value.trim();
   const nombre = document.getElementById('cliente-nombre').value.trim() || 'Cliente General';
-  if (!tel || carrito.length === 0) return;
+  if (carrito.length === 0) return;
+
+  // Método de pago elegido en el checkout (lafise = transferencia; si no, contra entrega / efectivo)
+  const selMetodo = document.getElementById('metodo-pago');
+  const metodoRaw = selMetodo ? selMetodo.value : '';
+  const metodo_pago = (metodoRaw === 'lafise') ? 'transferencia' : 'efectivo';
+
+  // Detalle completo de la compra (productos, precio y cantidad)
+  const items = carrito.map(item => ({
+    prodKey: item.key,
+    nombre: item.nombre,
+    precio: parseFloat(item.precio || 0),
+    cantidad: item.cant
+  }));
 
   try {
-    const nuevasCompras = clienteTotalComprasHistorial + 1;
-    const nuevoMonto = clienteMontoTotalHistorial + totalPagar;
-    await set(ref(db, 'clientes/' + tel), {
-      nombre: nombre,
-      total_compras: nuevasCompras,
-      monto_total: nuevoMonto,
-      ultima_compra: new Date().toISOString()
-    });
-
-    for (let item of carrito) {
-      const currentProd = productosData[item.key];
-      if (currentProd) {
-        const nuevoStock = Math.max(0, parseInt(currentProd.stock || 0) - item.cant);
-        await set(ref(db, 'productos/' + item.key), {...currentProd, stock: nuevoStock });
-      }
-    }
-
-    const compraId = 'recibo_' + numeroReciboFormateado;
-    const items = {};
-    carrito.forEach(item => { items[item.key] = item.cant; });
-
-    await set(ref(db, 'compras_registro/' + compraId), {
-      id: numeroReciboFormateado,
-      fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
-      whatsapp_cliente: tel,
+    // La factura NACE PENDIENTE: no mueve inventario ni suma la compra al cliente todavía.
+    // Eso ocurre en el Panel al CONFIRMAR EL PAGO; si el cliente no paga/cancela se elimina por su número.
+    await set(ref(db, 'facturas/fac_' + numeroReciboFormateado), {
+      numero: numeroReciboFormateado,
+      origen: 'tarjeta',
+      cliente_tel: tel,
       cliente_nombre: nombre,
+      metodo_pago: metodo_pago,
       items: items,
-      monto_revertir: totalPagar
+      total: totalPagar,
+      estado: 'pendiente',
+      stock_descontado: false,
+      creada: new Date().toISOString(),
+      fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
+      pagada: null
     });
   } catch (e) {
-    console.error("Error al asentar transacciones en Firebase:", e);
+    console.error("Error al registrar la factura pendiente en Firebase:", e);
   }
 }
 
