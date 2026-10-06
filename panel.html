@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel de Control | PG del Campo</title>
+<meta name="theme-color" content="#1b382b">
+<link rel="icon" href="favicon.ico">
+<style>
+:root{
+  --primary:#1b382b;--primary-dark:#10241c;--accent:#c8963e;--leaf:#8eb057;
+  --bg:#f4f4f6;--white:#fff;--text:#2c2c2c;--muted:#6b7c68;--border:#e2e8f0;
+  --danger:#dc3545;--ok:#2e7d32;--radius:12px;--shadow:0 4px 20px rgba(27,56,43,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);line-height:1.5;padding-bottom:60px}
+
+/* ===== LOGIN ===== */
+#login-gate{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#10241c,#1b382b);
+  display:flex;flex-direction:column;justify-content:center;align-items:center;padding:20px}
+.login-card{background:var(--white);border-radius:16px;box-shadow:var(--shadow);padding:36px 30px;max-width:380px;width:100%;text-align:center}
+.login-card h1{color:var(--primary);font-size:1.4rem;margin-bottom:6px}
+.login-card p{color:var(--muted);font-size:.9rem;margin-bottom:22px}
+.login-card input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:12px;font-size:1rem}
+.login-card input:focus{outline:none;border-color:var(--leaf)}
+.btn{cursor:pointer;border:none;border-radius:10px;font-weight:600;font-size:.95rem;padding:12px 18px;transition:.2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark)}
+.btn-gold{background:var(--accent);color:#10241c}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:6px 12px;font-size:.82rem;border-radius:8px}
+.login-err{color:var(--danger);font-size:.85rem;min-height:18px;margin-top:4px}
+
+/* ===== LAYOUT ===== */
+header.topbar{background:var(--primary);color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.topbar h1{font-size:1.1rem;display:flex;align-items:center;gap:8px}
+.topbar .ver{font-size:.72rem;opacity:.7;font-weight:400}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 18px}
+.tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.tab{padding:10px 18px;border-radius:10px;background:#fff;border:1.5px solid var(--border);cursor:pointer;font-weight:600;color:var(--muted);font-size:.9rem}
+.tab.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.panel-sec{display:none}
+.panel-sec.active{display:block}
+.card{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin-bottom:20px}
+.card h2{color:var(--primary);font-size:1.05rem;margin-bottom:4px}
+.card .sub{color:var(--muted);font-size:.84rem;margin-bottom:16px}
+
+/* ===== FORM ===== */
+.grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.field label{display:block;font-size:.78rem;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.field input,.field textarea,.field select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.92rem}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--leaf)}
+.field.check{display:flex;align-items:center;gap:8px}
+.field.check input{width:auto}
+.field.check label{margin:0;text-transform:none}
+.form-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+
+/* ===== TABLE ===== */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.86rem;min-width:720px}
+th,td{padding:10px 10px;text-align:left;border-bottom:1px solid var(--border)}
+th{background:#f0f4f0;color:var(--primary);font-size:.76rem;text-transform:uppercase;letter-spacing:.4px}
+tr:hover td{background:#fafbfa}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.72rem;font-weight:600}
+.pill.ok{background:#e3f3e5;color:var(--ok)}
+.pill.no{background:#fdecec;color:var(--danger)}
+.pill.promo{background:#fff3dc;color:#9a6b12}
+.acts{display:flex;gap:6px}
+.thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#eef2ee}
+.kyte-link{color:var(--accent);text-decoration:none;font-weight:600;font-size:.8rem}
+.kyte-link:hover{text-decoration:underline}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;padding:12px 22px;border-radius:30px;font-size:.9rem;box-shadow:var(--shadow);opacity:0;transition:.3s;z-index:9999;pointer-events:none}
+.toast.show{opacity:1}
+.toast.err{background:var(--danger)}
+.loading{text-align:center;padding:30px;color:var(--muted)}
+.tier-row{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px}
+.hint{font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.5}
+@media(max-width:560px){.topbar h1{font-size:.95rem}}
+</style>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="login-gate">
+  <div class="login-card">
+    <h1>🌿 Panel de Control</h1>
+    <p>PG del Campo — Gestión de productos y fidelidad</p>
+    <input type="text" id="lg-user" placeholder="Usuario" autocomplete="username">
+    <input type="password" id="lg-pass" placeholder="Contraseña" autocomplete="current-password" onkeypress="if(event.key==='Enter')intentarLogin()">
+    <button class="btn btn-primary" style="width:100%" onclick="intentarLogin()">Ingresar</button>
+    <div class="login-err" id="lg-err"></div>
+  </div>
+</div>
+
+<!-- ===== APP ===== -->
+<header class="topbar">
+  <h1>🌿 Panel PG del Campo <span class="ver">v3</span></h1>
+  <button class="btn btn-sm btn-gold" onclick="cerrarSesion()">Salir</button>
+</header>
+
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab active" data-tab="productos" onclick="cambiarTab('productos')">📦 Productos</div>
+    <div class="tab" data-tab="clientes" onclick="cambiarTab('clientes')">👥 Clientes y Estrellas</div>
+    <div class="tab" data-tab="fidelidad" onclick="cambiarTab('fidelidad')">⭐ Fidelidad y Descuentos</div>
+    <div class="tab" data-tab="promos" onclick="cambiarTab('promos')">🎁 Promociones</div>
+    <div class="tab" data-tab="web" onclick="cambiarTab('web')">🌐 Página Web</div>
+  </div>
+
+  <!-- ===== TAB PRODUCTOS ===== -->
+  <section class="panel-sec active" id="sec-productos">
+    <div class="card">
+      <h2 id="form-title">Añadir nuevo producto</h2>
+      <p class="sub">Los productos se guardan en la base de datos y aparecen al instante en la tarjeta de fidelidad.</p>
+      <input type="hidden" id="p-key">
+      <div class="grid-form">
+        <div class="field"><label>Nombre *</label><input type="text" id="p-nombre" placeholder="Café de Altura 1 lb"></div>
+        <div class="field"><label>Precio (C$) *</label><input type="number" id="p-precio" min="0" step="0.01" placeholder="180"></div>
+        <div class="field"><label>Stock (unidades)</label><input type="number" id="p-stock" min="0" step="1" placeholder="50"></div>
+        <div class="field"><label>Categoría</label><input type="text" id="p-categoria" placeholder="Café"></div>
+        <div class="field" style="grid-column:1/-1"><label>Imagen del producto</label>
+          <input type="url" id="p-imagen" placeholder="Pega una URL  https://..." oninput="previsualizarImagen()">
+          <input type="file" id="p-imagen-file" accept="image/*" style="margin-top:8px;font-size:.85rem" onchange="cargarImagenDesdeGaleria(event)">
+          <div class="hint">Pega una URL <b>o</b> toca el botón de arriba para <b>cargar desde la galería de tu dispositivo</b>. La imagen se optimiza sola.</div>
+          <img id="p-imagen-preview" alt="" style="display:none;margin-top:8px;max-height:110px;border-radius:8px;border:1px solid var(--border);background:#f3f6f3;padding:4px">
+        </div>
+        <div class="field"><label>URL producto en Kyte</label><input type="url" id="p-kyte" placeholder="https://proglodelcampo.catalog.kyte.site/..."></div>
+        <div class="field"><label>Descuento individual (%)</label><input type="number" id="p-descuento" min="0" max="100" step="1" placeholder="0"></div>
+        <div class="field check"><input type="checkbox" id="p-promo"><label>Marcar como promoción destacada</label></div>
+        <div class="field" style="grid-column:1/-1"><label>Descripción</label><textarea id="p-desc" rows="2" placeholder="Breve descripción del producto"></textarea></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="guardarProducto()" id="btn-guardar">Guardar producto</button>
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--muted)" onclick="limpiarForm()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Inventario actual</h2>
+      <p class="sub">Edita o elimina cualquier producto. El enlace “Kyte” abre la ficha del producto en tu catálogo.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th></th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Categoría</th><th>Kyte</th><th>Dto.</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody-productos"><tr><td colspan="9" class="loading">Cargando productos…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB FIDELIDAD ===== -->
+  <section class="panel-sec" id="sec-fidelidad">
+    <div class="card">
+      <h2>Reglas de estrellas y premio por fidelidad</h2>
+      <p class="sub">Define cada cuántas compras el cliente recibe un descuento adicional por lealtad.</p>
+      <div class="grid-form">
+        <div class="field"><label>Compras para el premio</label><input type="number" id="f-compras" min="1" step="1" placeholder="10"><div class="hint">Actual: cada 10ª compra.</div></div>
+        <div class="field"><label>Descuento del premio (%)</label><input type="number" id="f-premio" min="0" max="100" step="0.5" placeholder="5"><div class="hint">Se suma al descuento por volumen.</div></div>
+        <div class="field"><label>C$ por 1 estrella</label><input type="number" id="f-estrella" min="1" step="1" placeholder="20"></div>
+        <div class="field"><label>Avisar cuando falten (compras)</label><input type="number" id="f-alerta" min="0" step="1" placeholder="2"><div class="hint">Se resalta al cliente y en la lista cuando esté a esta cantidad (o menos) de la última compra del premio.</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Descuentos por volumen de compra</h2>
+      <p class="sub">Descuento automático según el subtotal del pedido. Puedes añadir o quitar niveles.</p>
+      <div id="tiers"></div>
+      <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary);margin-top:4px" onclick="agregarTier()">+ Añadir nivel</button>
+    </div>
+
+    <div class="form-actions" style="margin-top:4px">
+      <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración de fidelidad</button>
+    </div>
+  </section>
+
+  <!-- ===== TAB PROMOS ===== -->
+  <section class="panel-sec" id="sec-promos">
+    <div class="card">
+      <h2>Promociones y avisos</h2>
+      <p class="sub">Mensajes que puedes activar para mostrar en la tienda (ej. 2x1, envío gratis, temporada).</p>
+      <div id="promos-list"></div>
+      <div class="grid-form" style="margin-top:14px">
+        <div class="field" style="grid-column:1/-1"><label>Nueva promoción</label><input type="text" id="promo-nueva" placeholder="Ej. Envío gratis en compras mayores a C$1500"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="agregarPromo()">+ Añadir</button>
+        <button class="btn btn-primary" onclick="guardarConfig()">Guardar promociones</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB CLIENTES ===== -->
+  <section class="panel-sec" id="sec-clientes">
+    <div class="card" id="alerta-clientes-card" style="display:none;border-left:5px solid var(--accent)">
+      <h2>🔔 Clientes a punto de ganar su premio</h2>
+      <p class="sub">Están a pocas compras de completar la última compra del premio (según el aviso configurado en Fidelidad).</p>
+      <div id="alerta-clientes-lista"></div>
+    </div>
+    <div class="card">
+      <h2>Clientes y estrellas acumuladas</h2>
+      <p class="sub">Control de las estrellas que cada cliente acumula al comprar con la Tarjeta de Fidelidad. Se actualiza con cada pedido registrado.</p>
+      <div class="form-actions" style="margin-top:0;margin-bottom:14px">
+        <input type="text" id="cli-buscar" placeholder="Buscar por nombre o teléfono…" style="flex:1;min-width:200px;padding:10px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.92rem" oninput="pintarClientes()">
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="cargarClientes()">↻ Actualizar</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Teléfono</th><th>Nombre</th><th>Compras</th><th>Estrellas ciclo</th><th>Monto total</th><th>Última compra</th><th>Estado</th></tr></thead>
+          <tbody id="tbody-clientes"><tr><td colspan="7" class="loading">Cargando clientes…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== FACTURAS DE COMPRA ===== -->
+    <div class="card" id="facturas-nueva-card">
+      <h2>🧾 Nueva factura de compra</h2>
+      <p class="sub">Detalla la compra del cliente. La factura nace <b>pendiente</b>. Al <b>confirmar el pago</b> se da <b>salida</b> de inventario y se suma la compra al cliente; si el cliente <b>no paga o cancela</b>, <b>anúlala</b> y los productos <b>regresan</b> al inventario.</p>
+      <div class="grid-form">
+        <div class="field"><label>Teléfono del cliente</label><input type="text" id="fc-tel" placeholder="8888 8888" oninput="autoNombreCliente()"></div>
+        <div class="field"><label>Nombre del cliente</label><input type="text" id="fc-nombre" placeholder="Nombre y apellido"></div>
+        <div class="field"><label>Método de pago</label>
+          <select id="fc-metodo">
+            <option value="transferencia">Transferencia</option>
+            <option value="efectivo">Efectivo</option>
+            <option value="link">Link de pago</option>
+            <option value="qr">QR</option>
+          </select>
+        </div>
+      </div>
+      <h2 style="font-size:.92rem;margin-top:12px">Productos de la factura</h2>
+      <div class="tier-row" style="grid-template-columns:1fr 110px auto;align-items:end">
+        <div class="field"><label>Producto</label><select id="fc-prod"></select></div>
+        <div class="field"><label>Cantidad</label><input type="number" id="fc-cant" min="1" step="1" value="1"></div>
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="agregarItemFactura()">+ Añadir</button>
+      </div>
+      <div class="tbl-wrap" style="margin-top:8px">
+        <table>
+          <thead><tr><th>Producto</th><th>Precio</th><th>Cant.</th><th>Importe</th><th></th></tr></thead>
+          <tbody id="fc-items"><tr><td colspan="5" class="loading">Añade productos a la factura…</td></tr></tbody>
+        </table>
+      </div>
+      <p style="text-align:right;margin:10px 0;font-weight:700;font-size:1rem">Total: C$ <span id="fc-total">0.00</span></p>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="crearFactura()">Crear factura (pendiente)</button>
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--muted)" onclick="limpiarFactura()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Facturas registradas</h2>
+      <p class="sub">Pendientes de pago, pagadas (salida de inventario) y anuladas (reingreso al inventario).</p>
+      <div class="form-actions" style="margin-top:0;margin-bottom:12px">
+        <select id="fc-filtro" onchange="pintarFacturas()" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:.9rem">
+          <option value="todas">Todas</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="pagada">Pagadas</option>
+          <option value="anulada">Anuladas</option>
+        </select>
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="cargarFacturas()">↻ Actualizar</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Detalle</th><th>Total</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody-facturas"><tr><td colspan="7" class="loading">Cargando facturas…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB WEB ===== -->
+  <section class="panel-sec" id="sec-web">
+    <div class="card">
+      <h2>Editar la Página Web (PG del Campo)</h2>
+      <p class="sub">Cambia los textos, enlaces y datos de contacto de la web pública. Al guardar, la página se actualiza sola (sin tocar código).</p>
+      <h2 style="font-size:.92rem;margin-top:6px">Identidad</h2>
+      <div class="grid-form">
+        <div class="field"><label>Nombre</label><input type="text" id="w-nombre"></div>
+        <div class="field"><label>Eslogan</label><input type="text" id="w-eslogan"></div>
+        <div class="field" style="grid-column:1/-1"><label>Lema</label><input type="text" id="w-lema"></div>
+        <div class="field"><label>Teléfono</label><input type="text" id="w-telefono"></div>
+        <div class="field"><label>WhatsApp (solo número)</label><input type="text" id="w-whatsapp-num" placeholder="50557973097"></div>
+        <div class="field"><label>Correo</label><input type="text" id="w-email"></div>
+        <div class="field"><label>Ubicación</label><input type="text" id="w-ubicacion"></div>
+        <div class="field" style="grid-column:1/-1"><label>Dirección</label><input type="text" id="w-direccion"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.92rem">Enlaces</h2>
+      <div class="grid-form">
+        <div class="field" style="grid-column:1/-1"><label>Tienda Kyte</label><input type="url" id="w-kyte"></div>
+        <div class="field" style="grid-column:1/-1"><label>Pago en línea / QR (LAFISE)</label><input type="url" id="w-qr"></div>
+        <div class="field" style="grid-column:1/-1"><label>Tarjeta de Fidelidad</label><input type="url" id="w-tarjeta"></div>
+        <div class="field" style="grid-column:1/-1"><label>Agente (tarjeta digital)</label><input type="url" id="w-agente"></div>
+        <div class="field" style="grid-column:1/-1"><label>WhatsApp (enlace completo)</label><input type="url" id="w-whatsapp-url"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.92rem">Datos de pago</h2>
+      <div class="grid-form">
+        <div class="field"><label>Banco</label><input type="text" id="w-banco"></div>
+        <div class="field"><label>Cuenta N°</label><input type="text" id="w-cuenta"></div>
+        <div class="field"><label>Alias ACH/Móvil</label><input type="text" id="w-alias"></div>
+        <div class="field"><label>Titular</label><input type="text" id="w-titular"></div>
+        <div class="field" style="grid-column:1/-1"><label>Nota contra entrega</label><input type="text" id="w-entrega"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="font-size:.92rem">Asistente virtual (BotsPG)</h2>
+      <div class="grid-form">
+        <div class="field"><label>Título</label><input type="text" id="w-chat-titulo"></div>
+        <div class="field"><label>Subtítulo</label><input type="text" id="w-chat-subtitulo"></div>
+        <div class="field" style="grid-column:1/-1"><label>Mensaje de bienvenida</label><textarea id="w-chat-bienvenida" rows="3"></textarea></div>
+      </div>
+    </div>
+    <div class="form-actions" style="margin-top:4px">
+      <button class="btn btn-primary" onclick="guardarConfigWeb()">Guardar cambios de la página web</button>
+    </div>
+    <p class="hint" style="margin-top:10px">Nota: la web pública muestra estos cambios en pocos segundos (los visitantes pueden necesitar recargar la página).</p>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, child, set, remove, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// Misma base de datos que usa la tarjeta de fidelidad
+const firebaseConfig = {
+  apiKey: "AIzaSyBfPmfE6axd_W0Z80b0L-Jbjy6q7l9_NTk",
+  authDomain: "productos-globales-campo.firebaseapp.com",
+  databaseURL: "https://productos-globales-campo-default-rtdb.firebaseio.com",
+  projectId: "productos-globales-campo",
+  storageBucket: "productos-globales-campo.firebasestorage.app",
+  messagingSenderId: "938958452862",
+  appId: "1:938958452862:web:3b618567dae9aa01b7c02f",
+  measurementId: "G-MKD9T10DP3"
+};
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+signInAnonymously(getAuth(app)).catch(e => console.warn('Auth anon:', e));
+
+// ===== Config por defecto (si aún no existe en la base) =====
+const CONFIG_DEFECTO = {
+  comprasPorPremio: 10,
+  porcentajePremio: 5,
+  cordobasPorEstrella: 20,
+  alertaCerca: 2,
+  volumen: [ {min:600,pct:1}, {min:1200,pct:2}, {min:1800,pct:3} ],
+  promos: []
+};
+let configActual = JSON.parse(JSON.stringify(CONFIG_DEFECTO));
+let productos = {};
+let clientes = {};
+
+const $ = id => document.getElementById(id);
+function toast(msg, err){ const t=$('toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); setTimeout(()=>t.className='toast',2600); }
+
+// ===== LOGIN =====
+window.intentarLogin = function(){
+  const u = $('lg-user').value.trim();
+  const p = $('lg-pass').value;
+  if(u==='admin' && p==='1234'){
+    sessionStorage.setItem('pg_panel_ok','1');
+    $('login-gate').style.display='none';
+    iniciarApp();
+  } else {
+    $('lg-err').textContent = 'Usuario o contraseña incorrectos.';
+  }
+};
+window.cerrarSesion = function(){ sessionStorage.removeItem('pg_panel_ok'); location.reload(); };
+if(sessionStorage.getItem('pg_panel_ok')==='1'){ $('login-gate').style.display='none'; }
+
+// ===== TABS =====
+window.cambiarTab = function(t){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===t));
+  document.querySelectorAll('.panel-sec').forEach(s=>s.classList.remove('active'));
+  $('sec-'+t).classList.add('active');
+};
+
+// ===== CARGA INICIAL =====
+async function iniciarApp(){
+  await cargarConfig();
+  await cargarProductos();
+  await cargarClientes();
+  await cargarFacturas();
+  await cargarConfigWeb();
+}
+if(sessionStorage.getItem('pg_panel_ok')==='1'){ iniciarApp(); }
+
+async function cargarConfig(){
+  try{
+    const snap = await get(child(ref(db),'config/fidelidad'));
+    if(snap.exists()){
+      const c = snap.val();
+      configActual = Object.assign({}, CONFIG_DEFECTO, c);
+      if(!Array.isArray(configActual.volumen)) configActual.volumen = CONFIG_DEFECTO.volumen.slice();
+      if(!Array.isArray(configActual.promos)) configActual.promos = [];
+    }
+  }catch(e){ console.warn('config:',e); }
+  pintarConfig();
+}
+
+function pintarConfig(){
+  $('f-compras').value = configActual.comprasPorPremio;
+  $('f-premio').value  = configActual.porcentajePremio;
+  $('f-estrella').value= configActual.cordobasPorEstrella;
+  if($('f-alerta')) $('f-alerta').value = (configActual.alertaCerca!=null?configActual.alertaCerca:2);
+  pintarTiers();
+  pintarPromos();
+}
+
+function pintarTiers(){
+  $('tiers').innerHTML = configActual.volumen.map((t,i)=>`
+    <div class="tier-row">
+      <div class="field"><label>Desde (C$)</label><input type="number" min="0" value="${t.min}" onchange="actTier(${i},'min',this.value)"></div>
+      <div class="field"><label>Descuento (%)</label><input type="number" min="0" max="100" step="0.5" value="${t.pct}" onchange="actTier(${i},'pct',this.value)"></div>
+      <button class="btn btn-sm btn-danger" onclick="quitarTier(${i})">✕</button>
+    </div>`).join('') || '<p class="hint">Sin niveles. Añade al menos uno.</p>';
+}
+window.actTier = (i,campo,val)=>{ configActual.volumen[i][campo]=parseFloat(val)||0; };
+window.agregarTier = ()=>{ configActual.volumen.push({min:0,pct:0}); pintarTiers(); };
+window.quitarTier = (i)=>{ configActual.volumen.splice(i,1); pintarTiers(); };
+
+function pintarPromos(){
+  $('promos-list').innerHTML = configActual.promos.map((p,i)=>`
+    <div class="tier-row" style="grid-template-columns:auto 1fr auto">
+      <input type="checkbox" ${p.activo?'checked':''} onchange="togglePromo(${i},this.checked)" style="width:auto">
+      <div class="field"><input type="text" value="${(p.texto||'').replace(/"/g,'&quot;')}" onchange="actPromo(${i},this.value)"></div>
+      <button class="btn btn-sm btn-danger" onclick="quitarPromo(${i})">✕</button>
+    </div>`).join('') || '<p class="hint">Aún no hay promociones.</p>';
+}
+window.togglePromo = (i,v)=>{ configActual.promos[i].activo=v; };
+window.actPromo = (i,v)=>{ configActual.promos[i].texto=v; };
+window.agregarPromo = ()=>{ const v=$('promo-nueva').value.trim(); if(!v)return; configActual.promos.push({texto:v,activo:true}); $('promo-nueva').value=''; pintarPromos(); };
+window.quitarPromo = (i)=>{ configActual.promos.splice(i,1); pintarPromos(); };
+
+window.guardarConfig = async function(){
+  configActual.comprasPorPremio = parseInt($('f-compras').value)||10;
+  configActual.porcentajePremio = parseFloat($('f-premio').value)||0;
+  configActual.cordobasPorEstrella = parseFloat($('f-estrella').value)||20;
+  configActual.alertaCerca = parseInt($('f-alerta').value)||0;
+  try{
+    await set(ref(db,'config/fidelidad'), configActual);
+    toast('Configuración guardada ✔');
+    pintarClientes();
+  }catch(e){ console.error(e); toast('Error al guardar configuración',true); }
+};
+
+// ===== PRODUCTOS =====
+async function cargarProductos(){
+  const tb = $('tbody-productos');
+  try{
+    const snap = await get(child(ref(db),'productos'));
+    productos = snap.exists() ? snap.val() : {};
+    pintarProductos();
+    rellenarSelectProductos();
+  }catch(e){ console.error(e); tb.innerHTML='<tr><td colspan="9" class="loading" style="color:var(--danger)">Error al cargar productos</td></tr>'; }
+}
+
+function pintarProductos(){
+  const tb = $('tbody-productos');
+  const keys = Object.keys(productos);
+  if(!keys.length){ tb.innerHTML='<tr><td colspan="9" class="loading">No hay productos. Añade el primero arriba.</td></tr>'; return; }
+  tb.innerHTML = keys.map(k=>{
+    const p = productos[k];
+    const img = p.imagen ? `<img class="thumb" src="${p.imagen}" onerror="this.style.visibility='hidden'">` : '<div class="thumb"></div>';
+    const kyte = p.kyteUrl ? `<a class="kyte-link" href="${p.kyteUrl}" target="_blank" rel="noopener">Ver ↗</a>` : '<span class="hint">—</span>';
+    const stock = parseInt(p.stock||0);
+    const estado = stock>0 ? '<span class="pill ok">En stock</span>' : '<span class="pill no">Agotado</span>';
+    const promo = p.promo ? ' <span class="pill promo">Promo</span>' : '';
+    const dto = (parseFloat(p.descuento)||0) > 0 ? (p.descuento+'%') : '—';
+    return `<tr>
+      <td>${img}</td>
+      <td><strong>${p.nombre||''}</strong>${promo}</td>
+      <td>C$ ${(parseFloat(p.precio)||0).toFixed(2)}</td>
+      <td>${stock}</td>
+      <td>${p.categoria||'—'}</td>
+      <td>${kyte}</td>
+      <td>${dto}</td>
+      <td>${estado}</td>
+      <td><div class="acts">
+        <button class="btn btn-sm" style="background:#eef2ee;color:var(--primary)" onclick="editarProducto('${k}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="eliminarProducto('${k}')">Borrar</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+window.editarProducto = function(k){
+  const p = productos[k]; if(!p) return;
+  $('p-key').value=k; $('p-nombre').value=p.nombre||''; $('p-precio').value=p.precio||'';
+  $('p-stock').value=p.stock||0; $('p-categoria').value=p.categoria||''; $('p-imagen').value=p.imagen||'';
+  $('p-kyte').value=p.kyteUrl||''; $('p-descuento').value=p.descuento||0; $('p-promo').checked=!!p.promo;
+  $('p-desc').value=p.descripcion||'';
+  if($('p-imagen-file')) $('p-imagen-file').value='';
+  previsualizarImagen();
+  $('form-title').textContent='Editar producto';
+  $('btn-guardar').textContent='Actualizar producto';
+  window.scrollTo({top:0,behavior:'smooth'});
+};
+
+window.limpiarForm = function(){
+  ['p-key','p-nombre','p-precio','p-stock','p-categoria','p-imagen','p-kyte','p-descuento','p-desc'].forEach(id=>$(id).value='');
+  $('p-promo').checked=false;
+  if($('p-imagen-file')) $('p-imagen-file').value='';
+  const pv=$('p-imagen-preview'); if(pv){ pv.src=''; pv.style.display='none'; }
+  $('form-title').textContent='Añadir nuevo producto';
+  $('btn-guardar').textContent='Guardar producto';
+};
+
+// ===== IMAGEN DEL PRODUCTO (URL o galería del dispositivo) =====
+window.previsualizarImagen = function(){
+  const url = ($('p-imagen').value||'').trim();
+  const pv = $('p-imagen-preview');
+  if(!pv) return;
+  if(url){ pv.src=url; pv.style.display='block'; }
+  else { pv.src=''; pv.style.display='none'; }
+};
+
+window.cargarImagenDesdeGaleria = function(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('El archivo no es una imagen',true); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      // Redimensiona para que la base de datos no se recargue (máx 700px)
+      const MAX = 700;
+      let w = img.width, h = img.height;
+      if(w>MAX || h>MAX){ if(w>=h){ h=Math.round(h*MAX/w); w=MAX; } else { w=Math.round(w*MAX/h); h=MAX; } }
+      const canvas = document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      let dataUrl;
+      try { dataUrl = canvas.toDataURL('image/jpeg', 0.72); }
+      catch(_){ dataUrl = e.target.result; }
+      $('p-imagen').value = dataUrl;
+      previsualizarImagen();
+      toast('Imagen cargada de la galería ✔');
+    };
+    img.onerror = () => toast('No se pudo leer la imagen',true);
+    img.src = e.target.result;
+  };
+  reader.onerror = () => toast('No se pudo leer el archivo',true);
+  reader.readAsDataURL(file);
+};
+
+window.guardarProducto = async function(){
+  const nombre = $('p-nombre').value.trim();
+  const precio = parseFloat($('p-precio').value);
+  if(!nombre || isNaN(precio)){ toast('Nombre y precio son obligatorios',true); return; }
+  const datos = {
+    nombre,
+    precio,
+    stock: parseInt($('p-stock').value)||0,
+    categoria: $('p-categoria').value.trim(),
+    imagen: $('p-imagen').value.trim(),
+    kyteUrl: $('p-kyte').value.trim(),
+    descuento: parseFloat($('p-descuento').value)||0,
+    promo: $('p-promo').checked,
+    descripcion: $('p-desc').value.trim()
+  };
+  try{
+    let key = $('p-key').value;
+    if(key){
+      datos.stock = datos.stock; // conserva campos existentes no editados
+      await set(ref(db,'productos/'+key), Object.assign({}, productos[key], datos));
+    } else {
+      const nuevo = push(ref(db,'productos'));
+      await set(nuevo, datos);
+    }
+    toast('Producto guardado ✔');
+    limpiarForm();
+    await cargarProductos();
+  }catch(e){ console.error(e); toast('Error al guardar el producto',true); }
+};
+
+window.eliminarProducto = async function(k){
+  const p = productos[k];
+  if(!confirm('¿Eliminar “'+(p?.nombre||'este producto')+'”? Esta acción no se puede deshacer.')) return;
+  try{
+    await remove(ref(db,'productos/'+k));
+    toast('Producto eliminado');
+    await cargarProductos();
+  }catch(e){ console.error(e); toast('Error al eliminar',true); }
+};
+
+// ===== CLIENTES Y ESTRELLAS =====
+async function cargarClientes(){
+  const tb = $('tbody-clientes');
+  try{
+    const snap = await get(child(ref(db),'clientes'));
+    clientes = snap.exists() ? snap.val() : {};
+    pintarClientes();
+  }catch(e){ console.error(e); if(tb) tb.innerHTML='<tr><td colspan="7" class="loading" style="color:var(--danger)">Error al cargar clientes</td></tr>'; }
+}
+window.cargarClientes = cargarClientes;
+
+function fechaCorta(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString('es-NI',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+window.pintarClientes = function(){
+  const tb = $('tbody-clientes');
+  if(!tb) return;
+  const N = parseInt(configActual.comprasPorPremio)||10;
+  const alerta = parseInt(configActual.alertaCerca)||0;
+  const filtro = ($('cli-buscar')?.value||'').trim().toLowerCase();
+  let keys = Object.keys(clientes||{});
+  // calcular datos y ordenar: primero los más cercanos al premio
+  let filas = keys.map(tel=>{
+    const c = clientes[tel] || {};
+    const total = parseInt(c.total_compras||0);
+    let estrellas = total % N;
+    let premio = false, restantes = N;
+    if(estrellas===0 && total>0){ estrellas = N; premio = true; restantes = 0; }
+    else { restantes = N - estrellas; }
+    const cerca = (!premio && alerta>0 && restantes<=alerta && total>0);
+    return { tel, nombre: c.nombre||'Cliente', total, estrellas, premio, restantes, cerca,
+             monto: parseFloat(c.monto_total||0), ultima: c.ultima_compra||'' };
+  });
+  // filtro de búsqueda
+  if(filtro){ filas = filas.filter(f => f.nombre.toLowerCase().includes(filtro) || f.tel.toLowerCase().includes(filtro)); }
+  // orden: premio activo y cercanos primero, luego por más compras
+  filas.sort((a,b)=>{
+    const ra = a.premio?-1:a.restantes, rb = b.premio?-1:b.restantes;
+    if(ra!==rb) return ra-rb;
+    return b.total-a.total;
+  });
+
+  if(!filas.length){ tb.innerHTML='<tr><td colspan="7" class="loading">Aún no hay clientes registrados. Se registran automáticamente con cada compra en la tarjeta.</td></tr>'; }
+  else {
+    tb.innerHTML = filas.map(f=>{
+      let estado;
+      if(f.premio) estado = '<span class="pill promo">🎁 Premio activo</span>';
+      else if(f.cerca) estado = `<span class="pill" style="background:#fff3dc;color:#9a6b12">🔔 Faltan ${f.restantes}</span>`;
+      else estado = `<span class="pill ok">Faltan ${f.restantes}</span>`;
+      const rowStyle = f.premio ? ' style="background:#fff8e8"' : (f.cerca ? ' style="background:#fffdf4"' : '');
+      return `<tr${rowStyle}>
+        <td>${f.tel}</td>
+        <td><strong>${f.nombre}</strong></td>
+        <td>${f.total}</td>
+        <td>${f.estrellas} / ${N}</td>
+        <td>C$ ${f.monto.toFixed(2)}</td>
+        <td>${fechaCorta(f.ultima)}</td>
+        <td>${estado}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // tarjeta de alerta (clientes cercanos o con premio activo)
+  const alertaKeys = filas.filter(f => f.cerca || f.premio);
+  const card = $('alerta-clientes-card');
+  const lista = $('alerta-clientes-lista');
+  if(card && lista){
+    if(alertaKeys.length){
+      lista.innerHTML = alertaKeys.map(f=>{
+        const txt = f.premio
+          ? `<b>${f.nombre}</b> (${f.tel}) — 🎁 premio disponible en su próxima compra`
+          : `<b>${f.nombre}</b> (${f.tel}) — le falta${f.restantes===1?'':'n'} <b>${f.restantes}</b> compra${f.restantes===1?'':'s'} para la ${N}ª`;
+        return `<p style="margin:4px 0;font-size:.9rem">⭐ ${txt}</p>`;
+      }).join('');
+      card.style.display='block';
+    } else {
+      card.style.display='none';
+    }
+  }
+};
+
+// ===== FACTURAS DE COMPRA E INVENTARIO =====
+let facturas = {};
+let itemsFactura = [];
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const nombreMetodo = m => ({transferencia:'Transferencia',efectivo:'Efectivo',link:'Link de pago',qr:'QR'}[m]||m||'—');
+
+function rellenarSelectProductos(){
+  const sel = $('fc-prod'); if(!sel) return;
+  const keys = Object.keys(productos||{});
+  if(!keys.length){ sel.innerHTML='<option value="">No hay productos</option>'; return; }
+  const prev = sel.value;
+  sel.innerHTML = keys.map(k=>{
+    const p = productos[k]||{};
+    const stock = parseInt(p.stock||0);
+    return `<option value="${k}">${esc(p.nombre||'Producto')} — C$ ${(parseFloat(p.precio)||0).toFixed(2)} (stock: ${stock})</option>`;
+  }).join('');
+  if(prev && productos[prev]) sel.value = prev;
+}
+window.rellenarSelectProductos = rellenarSelectProductos;
+
+window.autoNombreCliente = function(){
+  const tel = ($('fc-tel').value||'').trim();
+  if(tel && clientes[tel] && clientes[tel].nombre && !$('fc-nombre').value.trim()){
+    $('fc-nombre').value = clientes[tel].nombre;
+  }
+};
+
+window.agregarItemFactura = function(){
+  const k = $('fc-prod').value;
+  const cant = parseInt($('fc-cant').value)||0;
+  if(!k || !productos[k]){ toast('Selecciona un producto',true); return; }
+  if(cant<1){ toast('La cantidad debe ser al menos 1',true); return; }
+  const p = productos[k];
+  const existe = itemsFactura.find(it=>it.prodKey===k);
+  if(existe){ existe.cantidad += cant; }
+  else { itemsFactura.push({ prodKey:k, nombre:p.nombre||'Producto', precio:parseFloat(p.precio)||0, cantidad:cant }); }
+  $('fc-cant').value = 1;
+  pintarItemsFactura();
+};
+
+window.quitarItemFactura = function(i){ itemsFactura.splice(i,1); pintarItemsFactura(); };
+
+function totalFactura(){ return itemsFactura.reduce((s,it)=>s + it.precio*it.cantidad, 0); }
+
+function pintarItemsFactura(){
+  const tb = $('fc-items');
+  if(!itemsFactura.length){ tb.innerHTML='<tr><td colspan="5" class="loading">Añade productos a la factura…</td></tr>'; }
+  else {
+    tb.innerHTML = itemsFactura.map((it,i)=>`<tr>
+      <td>${esc(it.nombre)}</td>
+      <td>C$ ${it.precio.toFixed(2)}</td>
+      <td>${it.cantidad}</td>
+      <td>C$ ${(it.precio*it.cantidad).toFixed(2)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="quitarItemFactura(${i})">✕</button></td>
+    </tr>`).join('');
+  }
+  $('fc-total').textContent = totalFactura().toFixed(2);
+}
+
+window.limpiarFactura = function(){
+  itemsFactura = [];
+  $('fc-tel').value=''; $('fc-nombre').value=''; $('fc-metodo').value='transferencia'; $('fc-cant').value=1;
+  pintarItemsFactura();
+};
+
+window.crearFactura = async function(){
+  if(!itemsFactura.length){ toast('Añade al menos un producto',true); return; }
+  const tel = ($('fc-tel').value||'').trim();
+  const nombre = ($('fc-nombre').value||'').trim() || (tel && clientes[tel]?.nombre) || 'Cliente de mostrador';
+  const factura = {
+    cliente_tel: tel,
+    cliente_nombre: nombre,
+    metodo_pago: $('fc-metodo').value,
+    items: itemsFactura.map(it=>({ prodKey:it.prodKey, nombre:it.nombre, precio:it.precio, cantidad:it.cantidad })),
+    total: totalFactura(),
+    estado: 'pendiente',
+    stock_descontado: false,
+    creada: new Date().toISOString(),
+    pagada: null,
+    anulada: null
+  };
+  try{
+    const nuevo = push(ref(db,'facturas'));
+    await set(nuevo, factura);
+    toast('Factura creada (pendiente) ✔');
+    limpiarFactura();
+    await cargarFacturas();
+  }catch(e){ console.error(e); toast('Error al crear la factura',true); }
+};
+
+async function cargarFacturas(){
+  const tb = $('tbody-facturas');
+  try{
+    const snap = await get(child(ref(db),'facturas'));
+    facturas = snap.exists() ? snap.val() : {};
+    pintarFacturas();
+  }catch(e){ console.error(e); if(tb) tb.innerHTML='<tr><td colspan="7" class="loading" style="color:var(--danger)">Error al cargar facturas</td></tr>'; }
+}
+window.cargarFacturas = cargarFacturas;
+
+window.pintarFacturas = function(){
+  const tb = $('tbody-facturas'); if(!tb) return;
+  const filtro = ($('fc-filtro')?.value)||'todas';
+  let keys = Object.keys(facturas||{});
+  keys.sort((a,b)=> new Date(facturas[b].creada||0) - new Date(facturas[a].creada||0));
+  if(filtro!=='todas') keys = keys.filter(k => (facturas[k].estado||'pendiente')===filtro);
+  if(!keys.length){ tb.innerHTML='<tr><td colspan="7" class="loading">No hay facturas en esta vista.</td></tr>'; return; }
+  tb.innerHTML = keys.map(k=>{
+    const f = facturas[k]||{};
+    const estado = f.estado||'pendiente';
+    const items = Array.isArray(f.items)?f.items:[];
+    const detalle = items.map(it=>`${esc(it.nombre)} ×${it.cantidad}`).join(', ') || '—';
+    const cliente = `${esc(f.cliente_nombre||'Cliente')}${f.cliente_tel?('<br><span class="hint">'+esc(f.cliente_tel)+'</span>'):''}`;
+    let pill, acciones='';
+    if(estado==='pagada'){
+      pill = '<span class="pill ok">✔ Pagada (salida)</span>';
+      acciones = `<button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular (reingreso)</button>`;
+    } else if(estado==='anulada'){
+      pill = '<span class="pill no">✕ Anulada</span>';
+      acciones = '<span class="hint">—</span>';
+    } else {
+      pill = '<span class="pill" style="background:#fff3dc;color:#9a6b12">⏳ Pendiente</span>';
+      acciones = `<div class="acts"><button class="btn btn-sm" style="background:#e8f5e9;color:var(--primary)" onclick="confirmarPagoFactura('${k}')">✔ Confirmar pago</button><button class="btn btn-sm btn-danger" onclick="anularFactura('${k}')">Anular</button></div>`;
+    }
+    return `<tr>
+      <td>${fechaCorta(f.creada)}</td>
+      <td>${cliente}</td>
+      <td style="max-width:220px">${detalle}</td>
+      <td><strong>C$ ${(parseFloat(f.total)||0).toFixed(2)}</strong></td>
+      <td>${nombreMetodo(f.metodo_pago)}</td>
+      <td>${pill}</td>
+      <td>${acciones}</td>
+    </tr>`;
+  }).join('');
+};
+
+// Confirmar pago: SALIDA de inventario + registrar la compra al cliente
+window.confirmarPagoFactura = async function(k){
+  const f = facturas[k]; if(!f) return;
+  if((f.estado||'pendiente')!=='pendiente'){ toast('Solo se puede confirmar una factura pendiente',true); return; }
+  if(!confirm('Confirmar el pago de esta factura por C$ '+(parseFloat(f.total)||0).toFixed(2)+'?\nSe dará SALIDA de inventario y se sumará la compra al cliente.')) return;
+  const items = Array.isArray(f.items)?f.items:[];
+  try{
+    // SALIDA de inventario
+    for(const it of items){
+      const p = productos[it.prodKey];
+      if(!p) continue;
+      const nuevo = Math.max(0, (parseInt(p.stock||0)) - (parseInt(it.cantidad)||0));
+      await set(ref(db,'productos/'+it.prodKey+'/stock'), nuevo);
+    }
+    // Registrar compra al cliente (si tiene teléfono)
+    const tel = (f.cliente_tel||'').trim();
+    if(tel){
+      const c = clientes[tel] || {};
+      const actualizado = {
+        nombre: c.nombre || f.cliente_nombre || 'Cliente',
+        total_compras: (parseInt(c.total_compras||0)) + 1,
+        monto_total: (parseFloat(c.monto_total||0)) + (parseFloat(f.total)||0),
+        ultima_compra: new Date().toISOString()
+      };
+      await set(ref(db,'clientes/'+tel), Object.assign({}, c, actualizado));
+    }
+    // Marcar factura
+    await set(ref(db,'facturas/'+k), Object.assign({}, f, { estado:'pagada', stock_descontado:true, pagada:new Date().toISOString() }));
+    toast('Pago confirmado: salida de inventario y compra registrada ✔');
+    await cargarProductos(); await cargarClientes(); await cargarFacturas();
+  }catch(e){ console.error(e); toast('Error al confirmar el pago',true); }
+};
+
+// Anular: si hubo salida, INGRESO (regresa productos al inventario) y revierte la compra
+window.anularFactura = async function(k){
+  const f = facturas[k]; if(!f) return;
+  if((f.estado||'pendiente')==='anulada'){ toast('La factura ya está anulada',true); return; }
+  const erapagada = (f.estado==='pagada') || f.stock_descontado;
+  const msg = erapagada
+    ? 'Anular esta factura PAGADA?\nLos productos REGRESARÁN al inventario (ingreso) y se restará la compra del cliente.'
+    : 'Anular esta factura pendiente? (el cliente no pagó o canceló)';
+  if(!confirm(msg)) return;
+  const items = Array.isArray(f.items)?f.items:[];
+  try{
+    if(erapagada){
+      // INGRESO al inventario
+      for(const it of items){
+        const p = productos[it.prodKey];
+        if(!p) continue;
+        const nuevo = (parseInt(p.stock||0)) + (parseInt(it.cantidad)||0);
+        await set(ref(db,'productos/'+it.prodKey+'/stock'), nuevo);
+      }
+      // Revertir compra del cliente
+      const tel = (f.cliente_tel||'').trim();
+      if(tel && clientes[tel]){
+        const c = clientes[tel];
+        const actualizado = {
+          total_compras: Math.max(0, (parseInt(c.total_compras||0)) - 1),
+          monto_total: Math.max(0, (parseFloat(c.monto_total||0)) - (parseFloat(f.total)||0))
+        };
+        await set(ref(db,'clientes/'+tel), Object.assign({}, c, actualizado));
+      }
+    }
+    await set(ref(db,'facturas/'+k), Object.assign({}, f, { estado:'anulada', stock_descontado:false, anulada:new Date().toISOString() }));
+    toast(erapagada ? 'Factura anulada: ingreso al inventario ✔' : 'Factura anulada');
+    await cargarProductos(); await cargarClientes(); await cargarFacturas();
+  }catch(e){ console.error(e); toast('Error al anular la factura',true); }
+};
+
+// ===== EDITAR PÁGINA WEB (config/web) =====
+const WEB_DEFECTO = {
+  empresa:{ nombre:'PG del Campo', eslogan:'Del Campo a su Mesa', lema:'Todo lo bueno viene de Dios, con su ayuda todo es posible', telefono:'+505 57973097', whatsapp:'50557973097', email:'proglodelcam@gmail.com', ubicacion:'Jinotepe, Carazo — Nicaragua', direccion:'Km 38 Carretera Jinotepe a San Marcos' },
+  enlaces:{ kyteTienda:'', pagoQR:'', tarjetaFidelidad:'', agente:'', whatsapp:'' },
+  pagos:{ banco:'Bancentro LAFISE', cuenta:'140051265', aliasAch:'5797 3097', titular:'Fernando F. Martínez Flores', contraEntrega:'' },
+  chatbot:{ titulo:'BotsPG', subtitulo:'Asistente Virtual', bienvenida:'' }
+};
+let configWeb = JSON.parse(JSON.stringify(WEB_DEFECTO));
+
+async function cargarConfigWeb(){
+  try{
+    const snap = await get(child(ref(db),'config/web'));
+    if(snap.exists()){
+      const w = snap.val();
+      configWeb = {
+        empresa: Object.assign({}, WEB_DEFECTO.empresa, w.empresa||{}),
+        enlaces: Object.assign({}, WEB_DEFECTO.enlaces, w.enlaces||{}),
+        pagos:   Object.assign({}, WEB_DEFECTO.pagos,   w.pagos||{}),
+        chatbot: Object.assign({}, WEB_DEFECTO.chatbot, w.chatbot||{})
+      };
+    }
+  }catch(e){ console.warn('config web:',e); }
+  pintarConfigWeb();
+}
+
+function pintarConfigWeb(){
+  const e=configWeb.empresa, l=configWeb.enlaces, p=configWeb.pagos, ch=configWeb.chatbot;
+  $('w-nombre').value=e.nombre||''; $('w-eslogan').value=e.eslogan||''; $('w-lema').value=e.lema||'';
+  $('w-telefono').value=e.telefono||''; $('w-whatsapp-num').value=e.whatsapp||''; $('w-email').value=e.email||'';
+  $('w-ubicacion').value=e.ubicacion||''; $('w-direccion').value=e.direccion||'';
+  $('w-kyte').value=l.kyteTienda||''; $('w-qr').value=l.pagoQR||''; $('w-tarjeta').value=l.tarjetaFidelidad||'';
+  $('w-agente').value=l.agente||''; $('w-whatsapp-url').value=l.whatsapp||'';
+  $('w-banco').value=p.banco||''; $('w-cuenta').value=p.cuenta||''; $('w-alias').value=p.aliasAch||'';
+  $('w-titular').value=p.titular||''; $('w-entrega').value=p.contraEntrega||'';
+  $('w-chat-titulo').value=ch.titulo||''; $('w-chat-subtitulo').value=ch.subtitulo||''; $('w-chat-bienvenida').value=ch.bienvenida||'';
+}
+
+window.guardarConfigWeb = async function(){
+  configWeb = {
+    empresa:{ nombre:$('w-nombre').value.trim(), eslogan:$('w-eslogan').value.trim(), lema:$('w-lema').value.trim(),
+      telefono:$('w-telefono').value.trim(), whatsapp:$('w-whatsapp-num').value.trim().replace(/[^0-9]/g,''), email:$('w-email').value.trim(),
+      ubicacion:$('w-ubicacion').value.trim(), direccion:$('w-direccion').value.trim() },
+    enlaces:{ kyteTienda:$('w-kyte').value.trim(), pagoQR:$('w-qr').value.trim(), tarjetaFidelidad:$('w-tarjeta').value.trim(),
+      agente:$('w-agente').value.trim(), whatsapp:$('w-whatsapp-url').value.trim() },
+    pagos:{ banco:$('w-banco').value.trim(), cuenta:$('w-cuenta').value.trim(), aliasAch:$('w-alias').value.trim(),
+      titular:$('w-titular').value.trim(), contraEntrega:$('w-entrega').value.trim() },
+    chatbot:{ titulo:$('w-chat-titulo').value.trim(), subtitulo:$('w-chat-subtitulo').value.trim(), bienvenida:$('w-chat-bienvenida').value.trim() }
+  };
+  // limpia campos vacíos para no sobre-escribir con "" los valores por defecto de la web
+  const limpiar = o => { Object.keys(o).forEach(k=>{ if(o[k]==='' || o[k]==null) delete o[k]; }); return o; };
+  const payload = { empresa:limpiar({...configWeb.empresa}), enlaces:limpiar({...configWeb.enlaces}), pagos:limpiar({...configWeb.pagos}), chatbot:limpiar({...configWeb.chatbot}) };
+  try{
+    await set(ref(db,'config/web'), payload);
+    toast('Página web actualizada ✔');
+  }catch(e){ console.error(e); toast('Error al guardar la página web',true); }
+};
+</script>
+</body>
+</html>
