@@ -628,7 +628,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
   <div class="intro-leaf-br">🌿</div>
 
   <div class="intro-center">
-    <img src="https://lh3.googleusercontent.com/d/16eg1wb1cSN6WgwU36J21oF6FtZOBrGDL" alt="PG del Campo" class="intro-logo">
+    <img src="logo.png" alt="PG del Campo" class="intro-logo">
     <div class="intro-bar"></div>
     <h1 class="intro-brand">PG del Campo</h1>
     <p class="intro-tagline">Distribución inteligente del campo a tu hogar</p>
@@ -642,14 +642,14 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
   <div class="splash-leaf-br">🌿</div>
 
   <div class="splash-card">
-    <img src="https://lh3.googleusercontent.com/d/16eg1wb1cSN6WgwU36J21oF6FtZOBrGDL" alt="Productos Globales del Campo" class="splash-logo">
+    <img src="logo.png" alt="Productos Globales del Campo" class="splash-logo">
     <h2 class="splash-brand">PG del Campo</h2>
     <p class="splash-tagline">Distribución inteligente del campo a tu hogar.<br>Estrellas, promociones y despacho directo en un solo lugar.</p>
 
     <div class="splash-benefits">
       <span class="splash-pill"><span class="pill-icon">⭐</span> 1 estrella / C$20</span>
       <span class="splash-pill"><span class="pill-icon">🏷️</span> Hasta 3% dto.</span>
-      <span class="splash-pill"><span class="pill-icon">🎁</span> 2% en tu 10ma</span>
+      <span class="splash-pill"><span class="pill-icon">🎁</span> Premio por fidelidad</span>
       <span class="splash-pill"><span class="pill-icon">🛒</span> Envío C$20</span>
       <span class="splash-pill"><span class="pill-icon">📱</span> WhatsApp</span>
       <span class="splash-pill"><span class="pill-icon">💳</span> LAFISE QR</span>
@@ -681,7 +681,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
   <header class="banner">
     <div class="banner-inner">
       <div class="brand">
-        <img src="https://lh3.googleusercontent.com/d/16eg1wb1cSN6WgwU36J21oF6FtZOBrGDL" alt="Productos Globales del Campo" class="brand-logo-img">
+        <img src="logo.png" alt="Productos Globales del Campo" class="brand-logo-img">
       </div>
     </div>
     <div class="container">
@@ -861,6 +861,34 @@ let clienteMontoTotalHistorial = 0;
 let tienePremioActivo = false;
 const numeroDestinoWhatsApp = "50557973097";
 
+/* ===== CONFIG DE FIDELIDAD (editable desde panel.html) ===== */
+let configFidelidad = {
+  comprasPorPremio: 10,
+  porcentajePremio: 2,
+  alertaCerca: 2,
+  volumen: [ {min:600,pct:1}, {min:1200,pct:2}, {min:1800,pct:3} ]
+};
+async function cargarConfigFidelidad(){
+  try{
+    const snap = await get(child(ref(db),'config/fidelidad'));
+    if(snap.exists()){
+      const c = snap.val();
+      if(c.comprasPorPremio) configFidelidad.comprasPorPremio = parseInt(c.comprasPorPremio);
+      if(c.porcentajePremio!=null) configFidelidad.porcentajePremio = parseFloat(c.porcentajePremio);
+      if(c.alertaCerca!=null) configFidelidad.alertaCerca = parseInt(c.alertaCerca);
+      if(Array.isArray(c.volumen) && c.volumen.length) configFidelidad.volumen = c.volumen;
+    }
+  }catch(e){ console.warn('config fidelidad:', e); }
+}
+function calcDescuentos(subtotal, esDistribuidor){
+  let porcVolumen = 0;
+  const tiers = [...configFidelidad.volumen].sort((a,b)=>parseFloat(a.min)-parseFloat(b.min));
+  for(const t of tiers){ if(subtotal > parseFloat(t.min)) porcVolumen = (parseFloat(t.pct)||0)/100; }
+  const porcFidelidad = (tienePremioActivo && !esDistribuidor) ? ((configFidelidad.porcentajePremio||0)/100) : 0;
+  const porcVolumenEfectivo = esDistribuidor ? 0 : porcVolumen;
+  return { porcTotal: porcVolumenEfectivo + porcFidelidad };
+}
+
 /* ===== INTRO SPLASH ANIMATION ===== */
 (function() {
   // Generate ambient particles
@@ -996,6 +1024,7 @@ async function cargarCatalogoProductos() {
             <button class="btn-add" ${stock <= 0 ? 'disabled' : ''} onclick="agregarAlCarrito('${key}')">
               ${stock <= 0 ? 'Agotado' : '+ Anexar Pedido'}
             </button>
+            ${item.kyteUrl ? `<a href="${item.kyteUrl}" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:6px;font-size:11px;color:var(--accent,#c8963e);text-decoration:none;font-weight:600;">Ver en Kyte ↗</a>` : ''}
           </div>
         </div>`;
       });
@@ -1027,9 +1056,10 @@ window.verMisSellosYEntrar = async function() {
       clienteTotalComprasHistorial = totalCompras;
       clienteMontoTotalHistorial = parseFloat(data.monto_total || 0);
     }
-    let sellosActuales = totalCompras % 10;
+    const N = configFidelidad.comprasPorPremio || 10;
+    let sellosActuales = totalCompras % N;
     if (sellosActuales === 0 && totalCompras > 0) {
-      sellosActuales = 10;
+      sellosActuales = N;
       tienePremioActivo = true;
     } else {
       tienePremioActivo = false;
@@ -1040,7 +1070,7 @@ window.verMisSellosYEntrar = async function() {
     
     let html = `<p class='client-placeholder' style='margin:15px 0 10px;'>${resumenTexto}</p>`;
     html += '<div class="stamp-grid-10">';
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= N; i++) {
       if (i <= sellosActuales) {
         html += `<div class="stamp-slot-10 active">⭐<span class="stamp-number-10">${i}</span></div>`;
       } else {
@@ -1053,11 +1083,20 @@ window.verMisSellosYEntrar = async function() {
       html += `
       <div class="reward-banner-10">
         ¡PROMO FIDELIDAD ACTIVADA!<br>
-        Completaste tus 10 compras consecutivas. Se aplicará un beneficio especial en tu carrito de compras de hoy de forma automática.
+        Completaste tus ${configFidelidad.comprasPorPremio || 10} compras consecutivas. Se aplicará un beneficio especial en tu carrito de compras de hoy de forma automática.
       </div>`;
     } else {
-      let restantes = 10 - sellosActuales;
-      html += `<p class='client-placeholder' style='margin-bottom:20px;font-weight:bold;color:#ffca28;'>Te faltan únicamente ${restantes} compras para desbloquear tu próximo descuento.</p>`;
+      let restantes = N - sellosActuales;
+      const alertaCerca = parseInt(configFidelidad.alertaCerca || 0);
+      if (alertaCerca > 0 && restantes <= alertaCerca) {
+        html += `
+        <div class="reward-banner-10" style="background:linear-gradient(135deg,#fff3cd 0%,#ffd54f 100%);color:#7a4f00;">
+          🔔 ¡Estás muy cerca de tu premio!<br>
+          Solo te falta${restantes===1?'':'n'} <b>${restantes}</b> compra${restantes===1?'':'s'} para desbloquear tu beneficio de la ${N}ª compra.
+        </div>`;
+      } else {
+        html += `<p class='client-placeholder' style='margin-bottom:20px;font-weight:bold;color:#ffca28;'>Te faltan únicamente ${restantes} compras para desbloquear tu próximo descuento.</p>`;
+      }
     }
     html += `<button class="splash-btn-enter" onclick="desbloquearTiendaCatalogo('${telefono}', '${nombreCliente}', ${sellosActuales})">Acceder al Catálogo de Compra</button>`;
     resultadoDiv.innerHTML = html;
@@ -1079,12 +1118,13 @@ window.desbloquearTiendaCatalogo = function(telefono, nombre, sellos) {
     miniPanel.innerHTML = `
     <div style="font-size:12.5px;line-height:1.4;">
       <p><strong>Teléfono:</strong> ${telefono}</p>
-      <p><strong>Estrellas Ciclo:</strong> ${sellos} de 10 acumuladas</p>
+      <p><strong>Estrellas Ciclo:</strong> ${sellos} de ${configFidelidad.comprasPorPremio || 10} acumuladas</p>
       ${tienePremioActivo ? '<span style="display:inline-block;background:#ffca28;color:#10241c;font-size:10px;font-weight:bold;padding:2px 6px;border-radius:4px;margin-top:4px;">Beneficio 10ma Compra Habilitado</span>' : ''}
     </div>`;
   }, 550);
 };
 
+cargarConfigFidelidad();
 cargarCatalogoProductos();
 
 window.agregarAlCarrito = function(key) {
@@ -1145,15 +1185,8 @@ window.calcularTotales = function() {
   const esAConvenir = envioValor === -1;
   const envio = (esAConvenir || subtotal === 0) ? 0 : envioValor;
 
-  let porcVolumen = 0;
-  if (subtotal > 1800) porcVolumen = 0.03;
-  else if (subtotal > 1200) porcVolumen = 0.02;
-  else if (subtotal > 600) porcVolumen = 0.01;
-
   let esDistribuidor = (envioValor === 0);
-  let porcFidelidad = (tienePremioActivo && !esDistribuidor) ? 0.02 : 0;
-  let porcVolumenEfectivo = esDistribuidor ? 0 : porcVolumen;
-  let porcTotal = porcVolumenEfectivo + porcFidelidad;
+  let porcTotal = calcDescuentos(subtotal, esDistribuidor).porcTotal;
 
   let montoDescuento = subtotal * porcTotal;
   let totalPagar = (subtotal - montoDescuento) + envio;
@@ -1245,10 +1278,7 @@ window.procesarPagoWhatsApp = async function() {
   const subtotal = carrito.reduce((acc, i) => acc + (i.precio * i.cant), 0);
   const envio = esAConvenir ? 0 : envioValor;
 
-  let porcVolumen = subtotal > 1800 ? 0.03 : (subtotal > 1200 ? 0.02 : (subtotal > 600 ? 0.01 : 0));
-  let porcFidelidad = (tienePremioActivo && !esDistribuidor) ? 0.02 : 0;
-  let porcVolumenEfectivo = esDistribuidor ? 0 : porcVolumen;
-  let porcTotal = porcVolumenEfectivo + porcFidelidad;
+  let porcTotal = calcDescuentos(subtotal, esDistribuidor).porcTotal;
   let montoDescuento = subtotal * porcTotal;
   let totalPagar = (subtotal - montoDescuento) + envio;
 
@@ -1319,10 +1349,7 @@ window.generarEImprimirRecibo = async function() {
   const subtotal = carrito.reduce((acc, i) => acc + (i.precio * i.cant), 0);
   const envio = esAConvenir ? 0 : envioValor;
 
-  let porcVolumen = subtotal > 1800 ? 0.03 : (subtotal > 1200 ? 0.02 : (subtotal > 600 ? 0.01 : 0));
-  let porcFidelidad = (tienePremioActivo && !esDistribuidor) ? 0.02 : 0;
-  let porcVolumenEfectivo = esDistribuidor ? 0 : porcVolumen;
-  let porcTotal = porcVolumenEfectivo + porcFidelidad;
+  let porcTotal = calcDescuentos(subtotal, esDistribuidor).porcTotal;
   let montoDescuento = subtotal * porcTotal;
   let totalPagar = (subtotal - montoDescuento) + envio;
 
