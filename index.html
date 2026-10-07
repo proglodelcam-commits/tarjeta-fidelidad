@@ -856,6 +856,10 @@ signInAnonymously(getAuth(app)).catch(function(e){ console.warn('Auth anónima f
 
 let carrito = [];
 let productosData = {};
+/* ---- Enlaces a productos en Kyte ---- */
+const KYTE_STORE_URL='https://proglodelcampo.catalog.kyte.site';
+const KYTE_SEED={'café del campo clásico 400gr':'https://proglodelcampo.catalog.kyte.site/1726850058622-jzVca'};
+function kyteDe(p){ var u=(p&&(p.kyteUrl||p.kyte_url))||''; if(u&&u.trim()) return u.trim(); var n=((p&&p.nombre)||'').trim().toLowerCase(); return KYTE_SEED[n]||KYTE_STORE_URL; }
 let clienteTotalComprasHistorial = 0;
 let clienteMontoTotalHistorial = 0;
 let tienePremioActivo = false;
@@ -1016,7 +1020,7 @@ async function cargarCatalogoProductos() {
         const precio = parseFloat(item.precio || 0);
         grid.innerHTML += `
         <div class="product-card">
-          ${item.imagen ? `<img class="product-image" src="${item.imagen}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="product-image-fallback" style="display:none;"></div>` : '<div class="product-image-fallback"></div>'}
+          <a href="${kyteDe(item)}" target="_blank" rel="noopener" title="Ver este producto en Kyte">${item.imagen ? `<img class="product-image" src="${item.imagen}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"><div class="product-image-fallback" style="display:none;"></div>` : '<div class="product-image-fallback"></div>'}</a>
           <div class="product-info">
             <h4 class="product-name">${item.nombre}</h4>
             <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:5px;">Disponibles: ${stock} unidades</p>
@@ -1024,7 +1028,7 @@ async function cargarCatalogoProductos() {
             <button class="btn-add" ${stock <= 0 ? 'disabled' : ''} onclick="agregarAlCarrito('${key}')">
               ${stock <= 0 ? 'Agotado' : '+ Anexar Pedido'}
             </button>
-            ${item.kyteUrl ? `<a href="${item.kyteUrl}" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:6px;font-size:11px;color:var(--accent,#c8963e);text-decoration:none;font-weight:600;">Ver en Kyte ↗</a>` : ''}
+            ${`<a href="${kyteDe(item)}" target="_blank" rel="noopener" style="display:block;text-align:center;margin-top:6px;font-size:11px;color:var(--accent,#c8963e);text-decoration:none;font-weight:600;">Ver en Kyte ↗</a>`}
           </div>
         </div>`;
       });
@@ -1210,40 +1214,40 @@ window.calcularTotales = function() {
 async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   const tel = document.getElementById('cliente-tel').value.trim();
   const nombre = document.getElementById('cliente-nombre').value.trim() || 'Cliente General';
-  if (carrito.length === 0) return;
-
-  // Método de pago elegido en el checkout (lafise = transferencia; si no, contra entrega / efectivo)
-  const selMetodo = document.getElementById('metodo-pago');
-  const metodoRaw = selMetodo ? selMetodo.value : '';
-  const metodo_pago = (metodoRaw === 'lafise') ? 'transferencia' : 'efectivo';
-
-  // Detalle completo de la compra (productos, precio y cantidad)
-  const items = carrito.map(item => ({
-    prodKey: item.key,
-    nombre: item.nombre,
-    precio: parseFloat(item.precio || 0),
-    cantidad: item.cant
-  }));
+  if (!tel || carrito.length === 0) return;
 
   try {
-    // La factura NACE PENDIENTE: no mueve inventario ni suma la compra al cliente todavía.
-    // Eso ocurre en el Panel al CONFIRMAR EL PAGO; si el cliente no paga/cancela se elimina por su número.
-    await set(ref(db, 'facturas/fac_' + numeroReciboFormateado), {
-      numero: numeroReciboFormateado,
-      origen: 'tarjeta',
-      cliente_tel: tel,
-      cliente_nombre: nombre,
-      metodo_pago: metodo_pago,
-      items: items,
-      total: totalPagar,
-      estado: 'pendiente',
-      stock_descontado: false,
-      creada: new Date().toISOString(),
+    const nuevasCompras = clienteTotalComprasHistorial + 1;
+    const nuevoMonto = clienteMontoTotalHistorial + totalPagar;
+    await set(ref(db, 'clientes/' + tel), {
+      nombre: nombre,
+      total_compras: nuevasCompras,
+      monto_total: nuevoMonto,
+      ultima_compra: new Date().toISOString()
+    });
+
+    for (let item of carrito) {
+      const currentProd = productosData[item.key];
+      if (currentProd) {
+        const nuevoStock = Math.max(0, parseInt(currentProd.stock || 0) - item.cant);
+        await set(ref(db, 'productos/' + item.key), {...currentProd, stock: nuevoStock });
+      }
+    }
+
+    const compraId = 'recibo_' + numeroReciboFormateado;
+    const items = {};
+    carrito.forEach(item => { items[item.key] = item.cant; });
+
+    await set(ref(db, 'compras_registro/' + compraId), {
+      id: numeroReciboFormateado,
       fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
-      pagada: null
+      whatsapp_cliente: tel,
+      cliente_nombre: nombre,
+      items: items,
+      monto_revertir: totalPagar
     });
   } catch (e) {
-    console.error("Error al registrar la factura pendiente en Firebase:", e);
+    console.error("Error al asentar transacciones en Firebase:", e);
   }
 }
 
