@@ -867,7 +867,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, get, child, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, get, child, set, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -1258,49 +1258,78 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   const nombre = document.getElementById('cliente-nombre').value.trim() || 'Cliente General';
   if (!tel || carrito.length === 0) return;
 
-  try {
-    const nuevasCompras = clienteTotalComprasHistorial + 1;
-    const nuevoMonto = clienteMontoTotalHistorial + totalPagar;
-    await set(ref(db, 'clientes/' + tel), {
-      nombre: nombre,
-      total_compras: nuevasCompras,
-      monto_total: nuevoMonto,
-      ultima_compra: new Date().toISOString()
-    });
+  const nuevasCompras = (parseInt(clienteTotalComprasHistorial || 0)) + 1;
+  const nuevoMonto = (parseFloat(clienteMontoTotalHistorial || 0)) + totalPagar;
+  const now = new Date().toISOString();
+  const compraId = 'recibo_' + numeroReciboFormateado;
 
-    for (let item of carrito) {
-      const currentProd = productosData[item.key];
-      if (currentProd) {
-        const nuevoStock = Math.max(0, parseInt(currentProd.stock || 0) - item.cant);
-        await set(ref(db, 'productos/' + item.key), {...currentProd, stock: nuevoStock });
-      }
+  // Detalle de items para el historial del cliente y los recibos del panel
+  const itemsDetalle = {};
+  carrito.forEach(item => {
+    itemsDetalle[item.key] = { cantidad: item.cant, nombre: item.nombre, precio: item.precio };
+  });
+
+  // IMPORTANTE: escritura NO destructiva con rutas especificas (update por hojas).
+  // Antes se usaba set() sobre todo el nodo del cliente y borraba su historial.
+  const u = {};
+  u['clientes/' + tel + '/nombre'] = nombre;
+  u['clientes/' + tel + '/total_compras'] = nuevasCompras;
+  u['clientes/' + tel + '/monto_total'] = nuevoMonto;
+  u['clientes/' + tel + '/ultima_compra'] = now;
+  u['clientes/' + tel + '/ultima_compra_id'] = compraId;
+  u['clientes/' + tel + '/compras/' + compraId] = {
+    id: numeroReciboFormateado, fecha: now, numero_recibo: numeroReciboFormateado,
+    tipo: 'Venta al contado', estado: 'pagada', total: totalPagar,
+    monto_pagado: totalPagar, saldo_pendiente: 0, origen: 'Tarjeta Fidelidad',
+    items: itemsDetalle
+  };
+
+  // Registro de compra (el Panel lo lee para armar Pedidos y Recibos)
+  u['compras_registro/' + compraId] = {
+    id: numeroReciboFormateado, numero_recibo: numeroReciboFormateado,
+    fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
+    whatsapp_cliente: tel, nombre_cliente: nombre, cliente_nombre: nombre,
+    items: itemsDetalle, total: totalPagar, monto_revertir: totalPagar,
+    origen: 'Tarjeta Fidelidad'
+  };
+
+  // Transaccion (el Panel la lee en su vista de Transacciones e Inicio)
+  u['transacciones/' + compraId] = {
+    id: numeroReciboFormateado, numero_recibo: numeroReciboFormateado, fecha: now,
+    cliente: nombre, whatsapp: tel, tipo: 'Venta al contado',
+    monto: totalPagar, monto_pagado: totalPagar, saldo_pendiente: 0,
+    estado: 'pagada', metodo_pago: 'Transferencia', origen: 'Tarjeta Fidelidad'
+  };
+
+  // Descuento de inventario por ruta especifica (no sobreescribe todo el producto)
+  for (let item of carrito) {
+    const currentProd = productosData[item.key];
+    if (currentProd) {
+      const nuevoStock = Math.max(0, parseInt(currentProd.stock || 0) - item.cant);
+      u['productos/' + item.key + '/stock'] = nuevoStock;
     }
+  }
 
-    const compraId = 'recibo_' + numeroReciboFormateado;
-    const items = {};
-    carrito.forEach(item => { items[item.key] = item.cant; });
-
-    await set(ref(db, 'compras_registro/' + compraId), {
-      id: numeroReciboFormateado,
-      fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
-      whatsapp_cliente: tel,
-      cliente_nombre: nombre,
-      items: items,
-      monto_revertir: totalPagar
-    });
+  try {
+    await update(ref(db), u);
+    // Mantener sincronizados los totales de esta sesion
+    clienteTotalComprasHistorial = nuevasCompras;
+    clienteMontoTotalHistorial = nuevoMonto;
   } catch (e) {
     console.error("Error al asentar transacciones en Firebase:", e);
+    alert('\u26a0\ufe0f No se pudo registrar la compra en el sistema: ' + (e && e.message ? e.message : e) + '\n\nRevisa tu conexi\u00f3n a internet o los permisos de la base de datos.');
+    throw e;
   }
 }
 
 async function obtenerSiguienteRecibo() {
   try {
-    const contadorRef = ref(db, 'secuencia_recibos');
+    // Mismo contador global que la Tienda y el Panel (evita numeros de recibo duplicados)
+    const contadorRef = ref(db, 'meta/contador_recibo');
     const snapContador = await get(contadorRef);
-    let ultimoNumero = snapContador.exists() ? parseInt(snapContador.val() || 0) : 1000;
-    let nuevoNumeroRecibo = ultimoNumero + 1;
-    await set(contadorRef, nuevoNumeroRecibo);
-    return String(nuevoNumeroRecibo).padStart(7, '0');
+    let numeroActual = snapContador.exists() ? parseInt(snapContador.val() || 1001) : 1001;
+    await set(contadorRef, numeroActual + 1);
+    return String(numeroActual).padStart(7, '0');
   } catch (e) {
     console.warn("Fallo al sincronizar contador global de recibos. Generando número alternativo:", e);
     return String(Date.now()).slice(-7);
