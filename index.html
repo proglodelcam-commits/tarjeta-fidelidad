@@ -1526,10 +1526,26 @@ if ('serviceWorker' in navigator) {
     var estrellas = (typeof clienteEstrellas!=='undefined') ? (parseInt(clienteEstrellas)||0) : 0;
     var compras = (typeof clienteTotalComprasHistorial!=='undefined') ? (parseInt(clienteTotalComprasHistorial)||0) : 0;
     var u = WALLET_ENDPOINT + (WALLET_ENDPOINT.indexOf('?')>-1?'&':'?') +
-            'action=wallet&tel='+encodeURIComponent(tel) +
-            '&nombre='+encodeURIComponent(nombre) +
-            '&estrellas='+encodeURIComponent(estrellas) +
-            '&compras='+encodeURIComponent(compras);
+            const WALLET_ENDPOINT = 'https://script.google.com/.../exec'; // tu misma URL AKfycb...
+
+btn.addEventListener('click', function () {
+    const u = WALLET_ENDPOINT
+    + '?action=wallet'
+    + '&tel='       + enc(tel)
+    + '&nombre='    + enc(nombre)
+    + '&estrellas=' + (estrellas || 0)
+    + '&compras='   + (compras || 0);
+
+  btn.disabled = true;
+  fetch(u)
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.ok && d.url) window.open(d.url, '_blank');
+      else alert('No se pudo generar el pase: ' + ((d && d.error) || 'error'));
+    })
+    .catch(() => alert('Error de conexión con el servicio de Wallet.'))
+    .finally(() => { btn.disabled = false; });
+});
     window.open(u,'_blank');
   });
 })();
