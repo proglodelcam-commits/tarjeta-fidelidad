@@ -1491,5 +1491,48 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+<!-- ===== Boton "Agregar a Google Wallet" (PG del Campo) ===== -->
+<style>
+#gw-btn{position:fixed;left:50%;transform:translateX(-50%);bottom:80px;z-index:1200;
+  display:inline-flex;align-items:center;gap:9px;cursor:pointer;border:none;
+  background:#000;color:#fff;padding:11px 18px;border-radius:999px;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;font-weight:700;
+  box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .2s ease}
+#gw-btn:hover{transform:translateX(-50%) translateY(-2px)}
+#gw-btn svg{width:20px;height:20px}
+@media(max-width:380px){#gw-btn{font-size:12px;padding:10px 14px;bottom:70px}}
+</style>
+<button id="gw-btn" type="button" aria-label="Agregar al Google Wallet">
+  <svg viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="#fff" stroke-width="1.6"/><path d="M3 10h18" stroke="#fff" stroke-width="1.6"/><circle cx="17" cy="14" r="1.4" fill="#c8963e"/></svg>
+  Agregar a Google Wallet
+</button>
+<script>
+(function(){
+  /* === CONFIG: pega aqui la URL /exec de tu Apps Script de Wallet === */
+  var WALLET_ENDPOINT = 'https://script.google.com/macros/s/AKfycbysD_5MkI0EYsHE8ackur59bKuxk5twf_FaRficlRS_8aBXBFGk8j49OA8IStfBNbpy/exec';
+  var btn = document.getElementById('gw-btn');
+  if(!btn) return;
+  btn.addEventListener('click', function(){
+    if(WALLET_ENDPOINT.indexOf('http')!==0){
+      alert('Falta configurar la URL del servicio de Google Wallet.');
+      return;
+    }
+    function val(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():''; }
+    var tel = val('cliente-tel');
+    var nombre = val('cliente-nombre');
+    if(!tel){ tel = (prompt('Ingresa tu numero de WhatsApp para tu tarjeta:')||'').trim(); }
+    if(!tel){ return; }
+    if(!nombre){ nombre = (prompt('Tu nombre:')||'Cliente PG').trim(); }
+    var estrellas = (typeof clienteEstrellas!=='undefined') ? (parseInt(clienteEstrellas)||0) : 0;
+    var compras = (typeof clienteTotalComprasHistorial!=='undefined') ? (parseInt(clienteTotalComprasHistorial)||0) : 0;
+    var u = WALLET_ENDPOINT + (WALLET_ENDPOINT.indexOf('?')>-1?'&':'?') +
+            'action=wallet&tel='+encodeURIComponent(tel) +
+            '&nombre='+encodeURIComponent(nombre) +
+            '&estrellas='+encodeURIComponent(estrellas) +
+            '&compras='+encodeURIComponent(compras);
+    window.open(u,'_blank');
+  });
+})();
+</script>
 </body>
 </html>
