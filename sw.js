@@ -8,7 +8,7 @@
    - CACHE_VERSION versionado: al cambiar el numero se borran los caches viejos
      automaticamente en la siguiente carga.
 */
-const CACHE_VERSION = 'pg-campo-v3';
+const CACHE_VERSION = 'pg-campo-v4';
 const STATIC_CACHE  = CACHE_VERSION + '-static';
 const PAGES_CACHE   = CACHE_VERSION + '-pages';
 
