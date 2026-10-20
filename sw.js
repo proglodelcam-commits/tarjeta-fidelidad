@@ -1,96 +1,100 @@
-/* Service worker PG del Campo - version corregida
+/* ===========================================================
+   Service Worker - PG del Campo (Tarjeta de Fidelidad)
    Estrategia:
-   - Paginas HTML (navegacion): RED PRIMERO. Si hay internet, siempre trae la
-     version fresca (nunca sirve una pagina en blanco cacheada). Si no hay
-     internet, cae al cache.
-   - Recursos estaticos (vendor/, imagenes, css, js): CACHE PRIMERO, con
-     actualizacion en segundo plano.
-   - CACHE_VERSION versionado: al cambiar el numero se borran los caches viejos
-     automaticamente en la siguiente carga.
-*/
-const CACHE_VERSION = 'pg-campo-v4';
-const STATIC_CACHE  = CACHE_VERSION + '-static';
-const PAGES_CACHE   = CACHE_VERSION + '-pages';
+   - Navegación (index.html): RED PRIMERO  -> siempre intenta traer
+     la versión nueva; si no hay internet, usa la copia guardada.
+   - Recursos (css/js/img): STALE-WHILE-REVALIDATE -> muestra rápido
+     lo guardado y actualiza en segundo plano.
+   - En cada publicación sube el número de CACHE_VERSION: eso borra
+     la caché vieja y obliga a los teléfonos a tomar lo nuevo.
+   =========================================================== */
 
-// Recursos que conviene precachear (ajusta si agregas/quitas librerias).
-const PRECACHE = [
+/* 👇 IMPORTANTE: sube este número (v1 -> v2 -> v3...) cada vez que
+   publiques cambios en la tarjeta. Es lo único que debes tocar. */
+const CACHE_VERSION = 'pg-tarjeta-v2';
+
+/* Archivos base para que la app abra incluso sin conexión. */
+const PRECACHE_URLS = [
   './',
   './index.html',
-  './panel.html',
-  './tienda.html',
-  './tarjeta-fidelidad.html',
-  './vendor/tailwind.js',
-  './vendor/chart.umd.min.js',
-  './vendor/qrcode.min.js',
-  './vendor/fontawesome/css/all.min.css',
-  './vendor/fonts/fonts.css'
+  './manifest.webmanifest'
 ];
 
-self.addEventListener('install', (event) => {
+/* ---------- INSTALACIÓN: guarda los archivos base ---------- */
+self.addEventListener('install', function (event) {
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then(function (cache) {
+      return cache.addAll(PRECACHE_URLS).catch(function () { /* ignora si falta alguno */ });
+    })
+  );
+  /* Activa de inmediato la versión nueva, sin esperar a cerrar pestañas. */
   self.skipWaiting();
+});
+
+/* ---------- ACTIVACIÓN: borra las cachés viejas ---------- */
+self.addEventListener('activate', function (event) {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) =>
-      // addAll falla si UN recurso da 404; usamos add individual tolerante
-      Promise.all(PRECACHE.map((url) =>
-        cache.add(url).catch(() => { /* ignorar recursos faltantes */ })
-      ))
-    )
+    caches.keys().then(function (keys) {
+      return Promise.all(
+        keys.map(function (key) {
+          if (key !== CACHE_VERSION) { return caches.delete(key); }
+        })
+      );
+    }).then(function () {
+      /* Toma control de las pestañas abiertas sin recargar manualmente. */
+      return self.clients.claim();
+    })
   );
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => k !== STATIC_CACHE && k !== PAGES_CACHE)
-          .map((k) => caches.delete(k))
-      )
-    ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
+/* ---------- FETCH: decide cómo responder cada petición ---------- */
+self.addEventListener('fetch', function (event) {
   const req = event.request;
-  if (req.method !== 'GET') return;
+
+  /* Solo manejamos GET; lo demás (POST al chatbot, etc.) pasa directo. */
+  if (req.method !== 'GET') { return; }
 
   const url = new URL(req.url);
-  // No interceptar Firebase / dominios externos: dejar pasar a la red.
-  if (url.origin !== self.location.origin) return;
 
-  const isPage =
-    req.mode === 'navigate' ||
-    (req.headers.get('accept') || '').includes('text/html');
+  /* No cacheamos llamadas a otros dominios (Firebase, Apps Script,
+     Google Fonts/APIs, Kyte, etc.): dejamos que vayan directo a la red. */
+  if (url.origin !== self.location.origin) { return; }
 
-  if (isPage) {
-    // RED PRIMERO para paginas: evita servir HTML en blanco cacheado.
+  /* ¿Es una navegación de página (abrir / recargar el sitio)? */
+  const esNavegacion = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').indexOf('text/html') !== -1;
+
+  if (esNavegacion) {
+    /* RED PRIMERO: trae siempre la versión nueva del index.html. */
     event.respondWith(
-      fetch(req)
-        .then((resp) => {
-          const copy = resp.clone();
-          caches.open(PAGES_CACHE).then((c) => c.put(req, copy));
-          return resp;
-        })
-        .catch(() =>
-          caches.match(req).then((c) => c || caches.match('./index.html'))
-        )
+      fetch(req).then(function (resp) {
+        const copia = resp.clone();
+        caches.open(CACHE_VERSION).then(function (cache) { cache.put('./index.html', copia); });
+        return resp;
+      }).catch(function () {
+        /* Sin internet: usa la última versión guardada. */
+        return caches.match('./index.html').then(function (c) { return c || caches.match('./'); });
+      })
     );
     return;
   }
 
-  // CACHE PRIMERO para estaticos (vendor, imagenes, etc.)
+  /* RECURSOS (css/js/imágenes del mismo sitio): STALE-WHILE-REVALIDATE. */
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const network = fetch(req)
-        .then((resp) => {
-          if (resp && resp.status === 200) {
-            const copy = resp.clone();
-            caches.open(STATIC_CACHE).then((c) => c.put(req, copy));
-          }
-          return resp;
-        })
-        .catch(() => cached);
-      return cached || network;
+    caches.match(req).then(function (cacheada) {
+      const red = fetch(req).then(function (resp) {
+        if (resp && resp.status === 200) {
+          const copia = resp.clone();
+          caches.open(CACHE_VERSION).then(function (cache) { cache.put(req, copia); });
+        }
+        return resp;
+      }).catch(function () { return cacheada; });
+      return cacheada || red;
     })
   );
+});
+
+/* ---------- Permite forzar la actualización desde la página ---------- */
+self.addEventListener('message', function (event) {
+  if (event.data === 'SKIP_WAITING') { self.skipWaiting(); }
 });
