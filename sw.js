@@ -11,7 +11,7 @@
 
 /* 👇 IMPORTANTE: sube este número (v1 -> v2 -> v3...) cada vez que
    publiques cambios en la tarjeta. Es lo único que debes tocar. */
-const CACHE_VERSION = 'pg-tarjeta-v2';
+const CACHE_VERSION = 'pg-tarjeta-v3';
 
 /* Archivos base para que la app abra incluso sin conexión. */
 const PRECACHE_URLS = [
