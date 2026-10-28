@@ -1532,7 +1532,25 @@ if ('serviceWorker' in navigator) {
             '&nombre='    + enc(nombre) +
             '&estrellas=' + (estrellas||0) +
             '&compras='   + (compras||0);
-    window.open(u,'_blank');
+    /* Abrimos la pestana AHORA (gesto del usuario) para evitar bloqueo de pop-ups */
+    var win = window.open('', '_blank');
+    btn.disabled = true;
+    fetch(u)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.ok && d.jwt){
+          var saveUrl = 'https://pay.google.com/gp/v/save/' + d.jwt;
+          if(win){ win.location.href = saveUrl; } else { window.open(saveUrl, '_blank'); }
+        } else {
+          if(win){ win.close(); }
+          alert('No se pudo generar tu tarjeta: ' + ((d && d.error) || 'error desconocido'));
+        }
+      })
+      .catch(function(){
+        if(win){ win.close(); }
+        alert('Error de conexion con el servicio de Google Wallet. Intenta de nuevo.');
+      })
+      .finally(function(){ btn.disabled = false; });
   });
 })();
 </script>
