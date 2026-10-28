@@ -883,6 +883,52 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+/* Ayudante expuesto para que el boton de Google Wallet (script normal) pueda
+   leer las estrellas/compras REALES del cliente desde Firebase. */
+window.PG_walletData = async function(telRaw){
+  var tel = String(telRaw||'').replace(/[^0-9]/g,'');
+  var total = 0, nombre = 'Cliente PG';
+  try{
+    const snap = await get(ref(db, 'clientes/' + tel));
+    const d = snap.val();
+    if(d){ total = parseInt(d.total_compras||0)||0; if(d.nombre){ nombre = String(d.nombre).slice(0,40); } }
+  }catch(e){}
+  var N = 10;
+  try{ if(typeof configFidelidad!=='undefined' && configFidelidad && configFidelidad.comprasPorPremio){ N = parseInt(configFidelidad.comprasPorPremio)||10; } }catch(e){}
+  var estr = N>0 ? (total % N) : 0; if(estr===0 && total>0){ estr = N; }
+  return { tel: tel, nombre: nombre, compras: total, estrellas: estr };
+};
+
+/* Refresca el saldo del pase de Google Wallet tras una compra (action=update).
+   Es "disparar y olvidar" por JSONP: no bloquea ni rompe el flujo de la compra
+   aunque la API de Wallet aun no tenga permisos. */
+window.PG_WALLET_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzj7JwoWoUV87l5bI7RB6YtYhwfG49dD-m_7Ur_053rXwtWMHEp7TyhgrmzD5NGQYvq/exec';
+window.PG_walletUpdate = function(telRaw){
+  try{
+    var ep = window.PG_WALLET_ENDPOINT || '';
+    if(ep.indexOf('http')!==0) return;
+    var tel = String(telRaw||'').replace(/[^0-9]/g,'');
+    if(tel.length < 8) return;
+    window.PG_walletData(tel).then(function(info){
+      info = info || {};
+      var estrellas = parseInt(info.estrellas||0)||0;
+      var compras   = parseInt(info.compras||0)||0;
+      var cb = 'gwupd_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+      var s = document.createElement('script');
+      function clean(){ try{ delete window[cb]; }catch(_e){ window[cb]=undefined; } if(s&&s.parentNode){ s.parentNode.removeChild(s); } clearTimeout(t); }
+      var t = setTimeout(clean, 20000);
+      window[cb] = function(){ clean(); };
+      s.onerror = function(){ clean(); };
+      s.src = ep + (ep.indexOf('?')>-1?'&':'?') +
+              'action=update' +
+              '&tel='       + encodeURIComponent(info.tel || tel) +
+              '&estrellas=' + estrellas +
+              '&compras='   + compras +
+              '&callback='  + cb;
+      document.body.appendChild(s);
+    }).catch(function(){});
+  }catch(e){}
+};
 /* Autenticación anónima requerida por las reglas de la base de datos. */
 signInAnonymously(getAuth(app)).catch(function(e){ console.warn('Auth anónima falló', e); });
 
@@ -1315,6 +1361,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
     // Mantener sincronizados los totales de esta sesion
     clienteTotalComprasHistorial = nuevasCompras;
     clienteMontoTotalHistorial = nuevoMonto;
+    // Refrescar el saldo del pase de Google Wallet (si el cliente ya lo guardo)
+    try{ if(typeof window.PG_walletUpdate==='function'){ window.PG_walletUpdate(tel); } }catch(e){}
   } catch (e) {
     console.error("Error al asentar transacciones en Firebase:", e);
     alert('\u26a0\ufe0f No se pudo registrar la compra en el sistema: ' + (e && e.message ? e.message : e) + '\n\nRevisa tu conexi\u00f3n a internet o los permisos de la base de datos.');
@@ -1519,25 +1567,45 @@ if ('serviceWorker' in navigator) {
       return;
     }
     function val(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():''; }
-    var tel = val('cliente-tel');
-    var nombre = val('cliente-nombre');
-    if(!tel){ tel = (prompt('Ingresa tu numero de WhatsApp para tu tarjeta:')||'').trim(); }
-    if(!tel){ return; }
-    if(!nombre){ nombre = (prompt('Tu nombre:')||'Cliente PG').trim(); }
-    var estrellas = (typeof clienteEstrellas!=='undefined') ? (parseInt(clienteEstrellas)||0) : 0;
-    var compras = (typeof clienteTotalComprasHistorial!=='undefined') ? (parseInt(clienteTotalComprasHistorial)||0) : 0;
-    var u = WALLET_ENDPOINT + (WALLET_ENDPOINT.indexOf('?')>-1?'&':'?') +
-            'action=wallet' +
-            '&tel='       + enc(tel) +
-            '&nombre='    + enc(nombre) +
-            '&estrellas=' + (estrellas||0) +
-            '&compras='   + (compras||0);
+    var tel = (val('cliente-tel') || val('clientPhone')).replace(/[^0-9]/g,'');
+    if(!tel){ tel = (prompt('Ingresa tu numero de WhatsApp para tu tarjeta:')||'').replace(/[^0-9]/g,''); }
+    if(tel.length < 8){ alert('Ingresa un numero de WhatsApp valido (8 digitos).'); return; }
     /* Abrimos la pestana AHORA (gesto del usuario) para evitar bloqueo de pop-ups */
     var win = window.open('', '_blank');
     btn.disabled = true;
-    fetch(u)
-      .then(function(r){ return r.json(); })
-      .then(function(d){
+    /* Buscamos las estrellas/compras REALES del cliente en Firebase. */
+    var dataP = (typeof window.PG_walletData === 'function')
+      ? window.PG_walletData(tel)
+      : Promise.resolve({ tel: tel, nombre: (val('cliente-nombre')||'Cliente PG'), compras: 0, estrellas: 0 });
+    dataP.then(function(info){
+      info = info || {};
+      var nombre = info.nombre || val('cliente-nombre') || 'Cliente PG';
+      var estrellas = parseInt(info.estrellas || 0) || 0;
+      var compras = parseInt(info.compras || 0) || 0;
+      var u = WALLET_ENDPOINT + (WALLET_ENDPOINT.indexOf('?')>-1?'&':'?') +
+              'action=wallet' +
+              '&tel='       + enc(info.tel || tel) +
+              '&nombre='    + enc(nombre) +
+              '&estrellas=' + estrellas +
+              '&compras='   + compras;
+      /* JSONP: Apps Script no envia cabeceras CORS. */
+      var cb = 'gwcb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+      var s = document.createElement('script');
+      var done = false;
+      function gwCleanup(){
+        try{ delete window[cb]; }catch(_e){ window[cb] = undefined; }
+        if(s && s.parentNode){ s.parentNode.removeChild(s); }
+        clearTimeout(timer);
+        btn.disabled = false;
+      }
+      function gwFail(){
+        if(done){ return; } done = true; gwCleanup();
+        if(win){ win.close(); }
+        alert('Error de conexion con el servicio de Google Wallet. Intenta de nuevo.');
+      }
+      var timer = setTimeout(gwFail, 25000);
+      window[cb] = function(d){
+        if(done){ return; } done = true; gwCleanup();
         if(d && d.ok && d.jwt){
           var saveUrl = 'https://pay.google.com/gp/v/save/' + d.jwt;
           if(win){ win.location.href = saveUrl; } else { window.open(saveUrl, '_blank'); }
@@ -1545,12 +1613,15 @@ if ('serviceWorker' in navigator) {
           if(win){ win.close(); }
           alert('No se pudo generar tu tarjeta: ' + ((d && d.error) || 'error desconocido'));
         }
-      })
-      .catch(function(){
-        if(win){ win.close(); }
-        alert('Error de conexion con el servicio de Google Wallet. Intenta de nuevo.');
-      })
-      .finally(function(){ btn.disabled = false; });
+      };
+      s.onerror = gwFail;
+      s.src = u + '&callback=' + cb;
+      document.body.appendChild(s);
+    }).catch(function(){
+      if(win){ win.close(); }
+      btn.disabled = false;
+      alert('Error de conexion con el servicio de Google Wallet. Intenta de nuevo.');
+    });
   });
 })();
 </script>
