@@ -613,6 +613,9 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
 .totals-line.total { font-size: 16px; font-weight: 800; color: var(--primary); border-top: 2px dashed var(--border-color); padding-top: 10px; margin-top: 10px; }
 .discount-label { color: #28a745; font-weight: 600; }
 .btn-action { width: 100%; padding: 12px; border: none; border-radius: var(--radius-md); font-weight: 700; font-size: 14px; cursor: pointer; transition: var(--transition); display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; }
+.campo-ayuda { display:block; margin-top:5px; font-size:10.5px; line-height:1.35; color:#6b7280; }
+.notice-cash { margin-top:10px; padding:9px; border-radius:8px; font-size:10px; line-height:1.35; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46; }
+.notice-antes-del-boton { margin-top:8px; padding:7px 9px; border-radius:8px; font-size:10px; line-height:1.35; background:#f1f5f9; border:1px dashed #cbd5e1; color:#475569; }
 .btn-whatsapp { background-color: #25d366; color: white; }
 .btn-whatsapp:hover { background-color: #1ebd58; }
 .btn-whatsapp:disabled, .btn-recibo:disabled { background-color: #cbd5e1; color: #94a3b8; cursor: not-allowed; }
@@ -755,10 +758,12 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
           <div class="form-group">
             <label>Número Telefónico (Fidelizado):</label>
             <input type="tel" id="cliente-tel" readonly style="background-color:#eef0ee; cursor:not-allowed;">
+            <small class="campo-ayuda">Usamos tu WhatsApp para avisarte cuando el pedido esté listo.</small>
           </div>
           <div class="form-group">
             <label>Dirección Física de Destino:</label>
             <input type="text" id="cliente-dir" placeholder="Ej: Costado sur de Iglesia San Antonio">
+            <small class="campo-ayuda">Dirección exacta: barrio, frente a qué, o punto de referencia.</small>
           </div>
           <div class="form-group">
             <label>Zona / Modalidad de Envío:</label>
@@ -785,11 +790,14 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
           <div class="totals-line"><span>Costo de Envío:</span><strong id="costo-envio">C$ 0.00</strong></div>
           <div class="totals-line total"><span>TOTAL NETO A PAGAR:</span><strong id="total-pagar">C$ 0.00</strong></div>
 
+          <div class="notice-cash"><b>CONTADO:</b> tu pedido queda registrado como orden. El pago se coordina al confirmar — por WhatsApp te decimos cómo seguimos.</div>
+          <div class="notice-antes-del-boton">Revisá tus datos antes de confirmar. El pedido se cierra cuando nos escribís por WhatsApp.</div>
+
           <button id="btn-whatsapp" class="btn-action btn-whatsapp" onclick="procesarPagoWhatsApp()" disabled>
             Confirmar Pedido por WhatsApp
           </button>
           <button id="btn-recibo" class="btn-action btn-recibo" onclick="generarEImprimirRecibo()" disabled>
-            Generar e Imprimir Factura
+            Generar Orden de Pedido
           </button>
         </div>
       </div>
@@ -812,7 +820,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
 <div id="receipt-modal" class="modal">
   <div class="modal-content">
     <div class="modal-header no-print">
-      <h3 style="font-family: 'Fraunces', serif; color:var(--primary);">Factura Oficial de Orden</h3>
+      <h3 style="font-family: 'Fraunces', serif; color:var(--primary);">Orden de Pedido</h3>
       <button class="btn-close-modal" onclick="cerrarModalRecibo()">X</button>
     </div>
 
@@ -822,7 +830,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
       <div style="text-align:center; font-size:10px; font-weight:bold; margin-bottom:2px;">Régimen de Cuota Fija</div>
       <div style="text-align:center; font-size:10.5px; margin-bottom:8px;">Jinotepe, Carazo, Nicaragua</div>
 
-      <div style="margin-bottom:4px;"><strong>No. Factura:</strong> <span id="rec-num">0000000</span></div>
+      <div style="margin-bottom:4px;"><strong>Pedido No.:</strong> <span id="rec-num">0000000</span></div>
       <div style="margin-bottom:8px;"><strong>Fecha Emisión:</strong> <span id="rec-date">--/--/----</span></div>
       <hr style="border:none; border-top:1px dashed #ccc; margin:8px 0;">
 
@@ -1325,8 +1333,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   u['clientes/' + tel + '/ultima_compra_id'] = compraId;
   u['clientes/' + tel + '/compras/' + compraId] = {
     id: numeroReciboFormateado, fecha: now, numero_recibo: numeroReciboFormateado,
-    tipo: 'Venta al contado', estado: 'pagada', total: totalPagar,
-    monto_pagado: totalPagar, saldo_pendiente: 0, origen: 'Tarjeta Fidelidad',
+    tipo: 'Venta al contado', estado: 'pendiente', total: totalPagar,
+    monto_pagado: 0, saldo_pendiente: totalPagar, origen: 'Tarjeta Fidelidad',
     items: itemsDetalle
   };
 
@@ -1343,8 +1351,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   u['transacciones/' + compraId] = {
     id: numeroReciboFormateado, numero_recibo: numeroReciboFormateado, fecha: now,
     cliente: nombre, whatsapp: tel, tipo: 'Venta al contado',
-    monto: totalPagar, monto_pagado: totalPagar, saldo_pendiente: 0,
-    estado: 'pagada', metodo_pago: 'Transferencia', origen: 'Tarjeta Fidelidad'
+    monto: totalPagar, monto_pagado: 0, saldo_pendiente: totalPagar,
+    estado: 'pendiente', metodo_pago: 'Transferencia', origen: 'Tarjeta Fidelidad'
   };
 
   // Descuento de inventario por ruta especifica (no sobreescribe todo el producto)
@@ -1408,9 +1416,9 @@ window.procesarPagoWhatsApp = async function() {
   const numeroReciboFormateado = await obtenerSiguienteRecibo();
   const urlLafiseDinamico = generarUrlLafise(totalPagar, numeroReciboFormateado);
 
-  let msj = '*NUEVO PEDIDO - PG DEL CAMPO*\n';
+  let msj = '*PG DEL CAMPO*\n';
   msj += '=============================\n';
-  msj += `*Factura N°:* ${numeroReciboFormateado}\n`;
+  msj += `*PEDIDO No.:* ${numeroReciboFormateado}\n`;
   msj += `*Cliente:* ${cliente}\n`;
   msj += `*Teléfono:* ${telf}\n`;
   msj += '=============================\n\n';
@@ -1429,7 +1437,10 @@ window.procesarPagoWhatsApp = async function() {
 
   msj += esAConvenir
     ? `*TOTAL (Envío por definir):* C$ ${(subtotal - montoDescuento).toFixed(2)}\n`
-    : `*TOTAL COMPRA NETO:* C$ ${totalPagar.toFixed(2)}\n`;
+    : `*TOTAL DEL PEDIDO:* C$ ${totalPagar.toFixed(2)}\n`;
+  msj += esAConvenir
+    ? '*ESTADO:* Orden registrada — falta confirmar el envío y el pago por WhatsApp\n'
+    : '*ESTADO:* Orden registrada — falta confirmar por WhatsApp\n';
   msj += '=============================\n\n';
 
   if (metodoPago === 'lafise') {
@@ -1439,10 +1450,17 @@ window.procesarPagoWhatsApp = async function() {
     msj += 'Alias ACH/Móvil LAFISE: *5797 3097*\n\n';
     msj += 'Puedes realizar tu pago directo haciendo clic en el siguiente enlace:\n';
     msj += `${urlLafiseDinamico}\n\n`;
+    msj += '_Si elegiste transferencia, podés pagar ya con el enlace o el alias de arriba._\n\n';
   } else {
     msj += '*MÉTODO DE PAGO: Pago Contra Entrega*\n';
-    msj += 'El cliente abonará el monto total en efectivo o mediante transferencia al momento de recibir su pedido.\n\n';
+    msj += 'El cliente abonará el monto total en efectivo o mediante transferencia al momento de recibir su pedido.\n';
+    msj += '_Si elegiste contra entrega, pagás al recibir._\n\n';
   }
+  msj += '*CÓMO SEGUIMOS*\n';
+  msj += '=============================\n';
+  msj += '1. Revisá que tus datos estén correctos.\n';
+  msj += '2. Enviá este mensaje.\n';
+  msj += '3. Te contestamos por aquí con el total final y la forma de entrega.\n\n';
 
   msj += 'BS"D\n';
   msj += 'Todo lo Bueno viene de Dios, con su ayuda todo es posible realizar\n';
@@ -1450,12 +1468,29 @@ window.procesarPagoWhatsApp = async function() {
   await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado);
 
   const mensajeFinalCodificado = encodeURIComponent(msj);
-  window.open(`https://wa.me/${numeroDestinoWhatsApp}?text=${mensajeFinalCodificado}`, '_blank');
+  const ventanaWa = window.open(`https://wa.me/${numeroDestinoWhatsApp}?text=${mensajeFinalCodificado}`, '_blank');
 
   carrito = [];
   localStorage.removeItem('carrito');
   document.getElementById('cliente-dir').value = "";
   calcularTotales();
+
+  alert(`Orden ${numeroReciboFormateado} registrada ✅\nAbrimos WhatsApp para que la envíes. El pedido queda confirmado cuando nos contestás por ahí.`);
+
+  /* Si cierran WhatsApp sin enviar: la orden queda guardada pero no nos llega */
+  try{
+    let avisado = false;
+    const timer = setInterval(() => {
+      if(ventanaWa && ventanaWa.closed){
+        clearInterval(timer);
+        if(avisado) return; avisado = true;
+        setTimeout(() => {
+          alert(`Tu orden ${numeroReciboFormateado} sigue guardada, pero todavía no nos llegó.\nAbrí WhatsApp de nuevo desde el botón y dale enviar — si no, no nos enteramos.`);
+        }, 800);
+      }
+    }, 1000);
+    setTimeout(() => clearInterval(timer), 600000);
+  }catch(e){}
 };
 
 window.generarEImprimirRecibo = async function() {
