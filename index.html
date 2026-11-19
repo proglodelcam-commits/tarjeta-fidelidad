@@ -690,7 +690,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
       <span class="splash-pill"><span class="pill-icon">💳</span> LAFISE QR</span>
     </div>
     <div style="margin:10px auto 4px;max-width:340px;font-size:11.5px;line-height:1.5;opacity:.85;text-align:center">
-      Descuentos por monto: <b>1% ≥ C$600</b> · <b>2% ≥ C$1,200</b> · <b>3% ≥ C$1,800</b>.<br>
+      Descuentos por monto: <b>1% en compras de más de C$600</b> · <b>2% de más de C$1,200</b> · <b>3% de más de C$1,800</b>.<br>
       Ingresá tu WhatsApp para ver tus estrellas acumuladas y avanzar hacia tu premio.
     </div>
 
@@ -1139,12 +1139,18 @@ window.verMisSellosYEntrar = async function() {
     const snapshot = await get(child(ref(db), `clientes/${telefono}`));
     let totalCompras = 0;
     let nombreCliente = "Cliente Frecuente";
+    let estrellasEnRevision = 0;
     if (snapshot.exists()) {
       const data = snapshot.val();
       totalCompras = parseInt(data.total_compras || 0);
       nombreCliente = data.nombre || nombreCliente;
       clienteTotalComprasHistorial = totalCompras;
       clienteMontoTotalHistorial = parseFloat(data.monto_total || 0);
+      if (data.compras) {
+        estrellasEnRevision = Object.keys(data.compras).filter(function(k){
+          var x = data.compras[k]; return x && x.estrella === 'pendiente';
+        }).length;
+      }
     }
     const N = configFidelidad.comprasPorPremio || 10;
     let sellosActuales = totalCompras % N;
@@ -1159,6 +1165,9 @@ window.verMisSellosYEntrar = async function() {
       : `¡Hola de nuevo, <strong>${nombreCliente}</strong>! Cuentas con <strong>${totalCompras}</strong> compras en nuestro registro histórico.`;
     
     let html = `<p class='client-placeholder' style='margin:15px 0 10px;'>${resumenTexto}</p>`;
+    if (estrellasEnRevision > 0) {
+      html += `<div style='margin:0 0 12px;padding:10px 12px;border-radius:10px;background:rgba(200,150,62,.14);border:1px solid rgba(200,150,62,.45);color:#7a4f00;font-size:13px;line-height:1.4;'>⏳ Tienes <b>${estrellasEnRevision}</b> compra${estrellasEnRevision===1?'':'s'} en revisi\u00f3n. La estrella se suma cuando confirmamos el pago.</div>`;
+    }
     html += '<div class="stamp-grid-10">';
     for (let i = 1; i <= N; i++) {
       if (i <= sellosActuales) {
@@ -1312,8 +1321,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   const nombre = document.getElementById('cliente-nombre').value.trim() || 'Cliente General';
   if (!tel || carrito.length === 0) return;
 
-  const nuevasCompras = (parseInt(clienteTotalComprasHistorial || 0)) + 1;
-  const nuevoMonto = (parseFloat(clienteMontoTotalHistorial || 0)) + totalPagar;
+  /* LA ESTRELLA NO SE SUMA SOLA: queda pendiente hasta que el negocio
+     confirme el pago desde el Panel Admin. */
   const now = new Date().toISOString();
   const compraId = 'recibo_' + numeroReciboFormateado;
 
@@ -1327,15 +1336,16 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   // Antes se usaba set() sobre todo el nodo del cliente y borraba su historial.
   const u = {};
   u['clientes/' + tel + '/nombre'] = nombre;
-  u['clientes/' + tel + '/total_compras'] = nuevasCompras;
-  u['clientes/' + tel + '/monto_total'] = nuevoMonto;
+  /* La estrella nace 'pendiente' dentro de la propia compra: se suma recien
+     cuando el negocio confirma el pago en el Panel Admin. */
   u['clientes/' + tel + '/ultima_compra'] = now;
   u['clientes/' + tel + '/ultima_compra_id'] = compraId;
   u['clientes/' + tel + '/compras/' + compraId] = {
     id: numeroReciboFormateado, fecha: now, numero_recibo: numeroReciboFormateado,
     tipo: 'Venta al contado', estado: 'pendiente', total: totalPagar,
     monto_pagado: 0, saldo_pendiente: totalPagar, origen: 'Tarjeta Fidelidad',
-    items: itemsDetalle
+    items: itemsDetalle,
+    estrella: 'pendiente', estrella_monto: totalPagar, estrella_origen: 'Tarjeta Fidelidad', estrella_fecha: now
   };
 
   // Registro de compra (el Panel lo lee para armar Pedidos y Recibos)
@@ -1367,8 +1377,7 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
   try {
     await update(ref(db), u);
     // Mantener sincronizados los totales de esta sesion
-    clienteTotalComprasHistorial = nuevasCompras;
-    clienteMontoTotalHistorial = nuevoMonto;
+    /* monto_total y total_compras solo cambian cuando el negocio confirma el pago. */
     // Refrescar el saldo del pase de Google Wallet (si el cliente ya lo guardo)
     try{ if(typeof window.PG_walletUpdate==='function'){ window.PG_walletUpdate(tel); } }catch(e){}
   } catch (e) {
