@@ -813,6 +813,7 @@ body { background-color: var(--bg-cream); color: var(--text-dark); line-height: 
     <p>© Productos Globales del Campo 2025 - Todos los derechos Reservados.</p>
     <p>Carazo/Jinotepe, Nicaragua</p>
     <p>WhatsApp: 505 5797 3097</p>
+    <p style="font-size:10px;opacity:.75;">Versión 2026-11-22 · envío detallado en el pedido</p>
   </footer>
 </div>
 
@@ -1316,7 +1317,14 @@ window.calcularTotales = function() {
     : `C$ ${totalPagar.toFixed(2)}`;
 };
 
-async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
+async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado, datosEnvio) {
+  const datosE = datosEnvio || {};
+  const costoEnvio = +datosE.envio || 0;
+  const zonaEnvio = datosE.zona || '';
+  const dirEnvio = datosE.dir || '';
+  const subEnvio = (datosE.subtotal != null) ? +datosE.subtotal : null;
+  const descEnvio = +datosE.descuento || 0;
+  const convEnvio = !!datosE.convenir;
   const tel = document.getElementById('cliente-tel').value.trim();
   const nombre = document.getElementById('cliente-nombre').value.trim() || 'Cliente General';
   if (!tel || carrito.length === 0) return;
@@ -1345,6 +1353,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
     tipo: 'Venta al contado', estado: 'pendiente', total: totalPagar,
     monto_pagado: 0, saldo_pendiente: totalPagar, origen: 'Tarjeta Fidelidad',
     items: itemsDetalle,
+    subtotal: subEnvio, descuento: descEnvio, costo_envio: costoEnvio,
+    envio_zona: zonaEnvio, direccion: dirEnvio, convenir: convEnvio,
     estrella: 'pendiente', estrella_monto: totalPagar, estrella_origen: 'Tarjeta Fidelidad', estrella_fecha: now
   };
 
@@ -1354,6 +1364,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
     fecha: new Date().toLocaleString('es-NI', { timeZone: 'America/Managua' }),
     whatsapp_cliente: tel, nombre_cliente: nombre, cliente_nombre: nombre,
     items: itemsDetalle, total: totalPagar, monto_revertir: totalPagar,
+    subtotal: subEnvio, descuento: descEnvio, costo_envio: costoEnvio,
+    envio_zona: zonaEnvio, direccion: dirEnvio, convenir: convEnvio,
     origen: 'Tarjeta Fidelidad'
   };
 
@@ -1362,6 +1374,8 @@ async function registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado) {
     id: numeroReciboFormateado, numero_recibo: numeroReciboFormateado, fecha: now,
     cliente: nombre, whatsapp: tel, tipo: 'Venta al contado',
     monto: totalPagar, monto_pagado: 0, saldo_pendiente: totalPagar,
+    subtotal: subEnvio, descuento: descEnvio, costo_envio: costoEnvio,
+    envio_zona: zonaEnvio, direccion: dirEnvio, convenir: convEnvio,
     estado: 'pendiente', metodo_pago: 'Transferencia', origen: 'Tarjeta Fidelidad'
   };
 
@@ -1442,6 +1456,9 @@ window.procesarPagoWhatsApp = async function() {
   msj += `*Subtotal:* C$ ${subtotal.toFixed(2)}\n`;
   if (porcTotal > 0) msj += `*Descuento (${(porcTotal * 100).toFixed(0)}%):* -C$ ${montoDescuento.toFixed(2)}\n`;
   msj += `*Modalidad Envío:* ${nombreZona}\n`;
+  msj += esAConvenir
+    ? `*Costo de Envío:* A convenir (se coordina por WhatsApp)\n`
+    : `*Costo de Envío:* C$ ${envio.toFixed(2)}${envio > 0 ? '' : ' (sin costo)'}\n`;
   msj += `*Dirección:* ${dir || 'Retiro en Sucursal'}\n\n`;
 
   msj += esAConvenir
@@ -1474,7 +1491,11 @@ window.procesarPagoWhatsApp = async function() {
   msj += 'BS"D\n';
   msj += 'Todo lo Bueno viene de Dios, con su ayuda todo es posible realizar\n';
 
-  await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado);
+  await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado, {
+    envio: envio, zona: nombreZona, dir: dir || 'Retiro en Sucursal',
+    subtotal: subtotal, descuento: montoDescuento, porcTotal: porcTotal,
+    convenir: esAConvenir
+  });
 
   const mensajeFinalCodificado = encodeURIComponent(msj);
   const ventanaWa = window.open(`https://wa.me/${numeroDestinoWhatsApp}?text=${mensajeFinalCodificado}`, '_blank');
@@ -1509,6 +1530,7 @@ window.generarEImprimirRecibo = async function() {
   const dir = document.getElementById('cliente-dir').value.trim() || 'Envío Convencional';
 
   const selectEnvio = document.getElementById('zona-envio');
+  const nombreZona = selectEnvio.options[selectEnvio.selectedIndex].getAttribute('data-nombre');
   const envioValor = parseFloat(selectEnvio.value);
   const esAConvenir = envioValor === -1;
   const esDistribuidor = (envioValor === 0);
@@ -1558,7 +1580,11 @@ window.generarEImprimirRecibo = async function() {
   const imgQr = document.getElementById('rec-lafise-qr');
   imgQr.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlLafiseDinamico)}`;
 
-  await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado);
+  await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado, {
+    envio: envio, zona: nombreZona, dir: dir || 'Retiro en Sucursal',
+    subtotal: subtotal, descuento: montoDescuento, porcTotal: porcTotal,
+    convenir: esAConvenir
+  });
 
   document.getElementById('receipt-modal').style.display = 'flex';
 
