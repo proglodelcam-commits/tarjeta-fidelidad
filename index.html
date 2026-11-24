@@ -1459,7 +1459,7 @@ window.procesarPagoWhatsApp = async function() {
   msj += esAConvenir
     ? `*Costo de Envío:* A convenir (se coordina por WhatsApp)\n`
     : `*Costo de Envío:* C$ ${envio.toFixed(2)}${envio > 0 ? '' : ' (sin costo)'}\n`;
-  msj += `*Dirección:* ${dir || 'Retiro en Sucursal'}\n\n`;
+  msj += `*Dirección:* ${dir || 'Comercios y Distribuidores'}\n\n`;
 
   msj += esAConvenir
     ? `*TOTAL (Envío por definir):* C$ ${(subtotal - montoDescuento).toFixed(2)}\n`
@@ -1492,7 +1492,7 @@ window.procesarPagoWhatsApp = async function() {
   msj += 'Todo lo Bueno viene de Dios, con su ayuda todo es posible realizar\n';
 
   await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado, {
-    envio: envio, zona: nombreZona, dir: dir || 'Retiro en Sucursal',
+    envio: envio, zona: nombreZona, dir: dir || 'Comercios y Distribuidores',
     subtotal: subtotal, descuento: montoDescuento, porcTotal: porcTotal,
     convenir: esAConvenir
   });
@@ -1581,7 +1581,7 @@ window.generarEImprimirRecibo = async function() {
   imgQr.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(urlLafiseDinamico)}`;
 
   await registrarPedidoEnFirebase(totalPagar, numeroReciboFormateado, {
-    envio: envio, zona: nombreZona, dir: dir || 'Retiro en Sucursal',
+    envio: envio, zona: nombreZona, dir: dir || 'Comercios y Distribuidores',
     subtotal: subtotal, descuento: montoDescuento, porcTotal: porcTotal,
     convenir: esAConvenir
   });
